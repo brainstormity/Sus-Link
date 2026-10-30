@@ -247,7 +247,12 @@ class SusLink(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.context_menu = app_commands.ContextMenu(
-            name="Sus Link Checker", callback=self.check_message
+            name="Sus Link Checker",
+            callback=self.check_message,
+            allowed_installs=app_commands.AppInstallationType(guild=True, user=True),
+            allowed_contexts=app_commands.AppCommandContext(
+                guild=True, dm_channel=True, private_channel=True
+            ),
         )
         bot.tree.add_command(self.context_menu)
 

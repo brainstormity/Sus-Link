@@ -22,7 +22,17 @@ venv/bin/python -m pip install -r requirements.txt
 
 Create `.env` using `.env.example` as a reference. Keep your existing Discord token and fill in `INSTABOX_API` and `GEMINI_API`. Do not share these keys in chat or commit `.env`. No owner ID setting is needed: Discord's `Bot.is_owner()` discovers the application owner. For team-owned applications discord.py also recognizes team developers and admins as owners.
 
-Invite the Discord application using the `bot` and `applications.commands` scopes. No Administrator permission is needed. Message Content Intent can stay **disabled** in the Developer Portal. Sus Link receives the selected message through the context-command interaction; it does not monitor channel messages.
+In the [Discord Developer Portal](https://discord.com/developers/applications), open your application’s **Installation** page:
+
+1. Under **Installation Contexts**, enable **both User Install and Guild Install**, then save.
+2. Select **Discord Provided Link** as the install link.
+3. Under **Default Install Settings**, set **User Install** to the `applications.commands` scope, and **Guild Install** to the `bot` and `applications.commands` scopes. No Administrator permission is needed. Save the settings.
+4. Open the install link and choose **Add to my apps** to install Sus Link to your own Discord account. This step is required to use **Sus Link Checker in DMs with other people and group DMs**; adding the bot only to a server is insufficient.
+5. Open the install link again and choose **Add to server** to install it in your server.
+
+The command supports servers, DMs with the bot, DMs with other people, and group DMs. Only the bot owner can run scans, and reports remain ephemeral. Enable both installation contexts **before** manually syncing the command with `!sync`. See [Discord’s installation guide](https://docs.discord.com/developers/tutorials/developing-a-user-installable-app).
+
+Message Content Intent can stay **disabled** in the Developer Portal. Sus Link receives the selected message through the context-command interaction; it does not monitor channel messages.
 
 ```sh
 venv/bin/python main.py
