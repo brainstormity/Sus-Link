@@ -144,6 +144,8 @@ def render_score_card(report):
             "#a8b5cb",
         )
     text(510, 355, "A risk rating, not a guarantee of safety.", 16, "#8190a6")
+    model = str(report.get("model") or "unavailable")[:80]
+    text(WIDTH - 30, 387, f"Model: {model}", 13, "#8190a6", anchor="ra")
     image = image.resize((WIDTH, HEIGHT), Image.Resampling.LANCZOS)
     output = io.BytesIO()
     image.save(output, format="PNG", optimize=True)

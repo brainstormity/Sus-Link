@@ -51,7 +51,7 @@ class OwnerView(ReplyView):
 
 
 def report_heading(verdict, message_url=None):
-    reference = f" · [#original-message]({message_url})" if message_url else ""
+    reference = f" · {message_url}" if message_url else ""
     return f"## {verdict}{reference}\n"
 
 
@@ -60,8 +60,6 @@ class ReportView(OwnerView):
         self.scan = scan
         report, ai = scan.report, scan.report["ai"]
         body = (
-            f"**Observed-signal score:** {report['score']}/100\n"
-            f"**AI assessment confidence:** {display(ai['confidence'], 40)}\n\n"
             f"{display(ai['summary'], 700)}\n"
             f"## Recommendation\n{display(ai['recommendation'], 550)}"
         )
@@ -88,10 +86,6 @@ class ReportView(OwnerView):
                 if findings
                 else "No scored warning signals were observed during this limited inspection."
             )
-        )
-        self.add_separator().add_body(
-            "-# Score is rule-based, not a probability or guarantee of safety. "
-            f"Model: {display(scan.model or 'unavailable', 80)} · {scan.created_at:%Y-%m-%d %H:%M UTC}"
         )
         if picture:
             self.add_separator()
@@ -221,7 +215,9 @@ class SusLink(commands.Cog):
                 scan, picture = await scanner.run(url)
                 card = b""
                 try:
-                    card = await asyncio.to_thread(render_score_card, scan.report)
+                    card = await asyncio.to_thread(
+                        render_score_card, {**scan.report, "model": scan.model}
+                    )
                 except Exception as render_error:
                     log.warning(
                         "Report gauge unavailable (%s); sending text report.",
