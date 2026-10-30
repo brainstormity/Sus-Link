@@ -14,7 +14,7 @@ The report header links back to the original checked message. The report include
 
 Only the bot owner can use it. The command acknowledgement is ephemeral, including in DMs with other people and group DMs. Finished reports are ordinary private messages sent directly by the bot, with the screenshot attached. One scan runs at a time; there are no progress edits.
 
-A risk score is not a probability or a guarantee of safety. Failed page loads, access challenges, or unavailable AI produce an **Inconclusive** verdict. See [scanning limitations](technical-details.md).
+A risk score is not a probability or a guarantee of safety. If the page is missing, blocked, empty, or AI analysis is unavailable, the report explains that under **Inspection limits**. Without sufficient evidence the verdict remains **Inconclusive**; concrete warning signals can still justify **Suspicious** or **High risk** despite limited coverage. See [scanning limitations](technical-details.md).
 
 ## If the command is missing
 

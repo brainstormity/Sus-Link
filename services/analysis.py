@@ -115,17 +115,43 @@ def evaluate(evidence):
             "The page attempted connections to blocked local or reserved network destinations.",
         )
     score = min(100, score)
-    incomplete = not evidence.get("loaded") or evidence.get("challenge")
+    reasons = []
+    status = evidence.get("status")
+    if status == 404:
+        reasons.append(
+            "The destination returned HTTP 404 (page not found); its intended content could not be inspected."
+        )
+    elif status == 410:
+        reasons.append("The destination returned HTTP 410 (page removed).")
+    elif status in (401, 403) and not evidence.get("challenge"):
+        reasons.append(f"The destination denied access (HTTP {status}).")
+    elif not evidence.get("loaded"):
+        reasons.append(
+            "The destination did not load successfully"
+            + (f" (HTTP {status})." if status else ".")
+        )
+    if evidence.get("challenge"):
+        reasons.append(
+            "A bot-verification or access challenge prevented inspection of the intended page."
+        )
+    if evidence.get("content_captured") is False:
+        reasons.append("Visible page content could not be captured.")
+    elif evidence.get("content_empty"):
+        reasons.append(
+            "The page remained empty or had no readable content after waiting."
+        )
+    incomplete = bool(reasons)
     verdict = (
         "High risk" if score >= 60 else "Suspicious" if score >= 25 else "Low risk"
     )
-    if incomplete:
+    if incomplete and score < 25:
         verdict = "Inconclusive"
     return {
         "score": score,
         "verdict": verdict,
         "findings": findings,
         "coverage_incomplete": bool(incomplete),
+        "coverage_reasons": reasons,
         "scoring": "Additive observed-signal score v1; not a probability. Visual AI findings are separate.",
     }
 
@@ -229,7 +255,15 @@ class Gemini:
                             "Separate observations from hypotheses. A login form, HTTPS, offsite SSO, "
                             "or absence of obvious threats alone cannot prove safety or malice. "
                             "Return concise plain text fields in the specified JSON schema. No Markdown links. "
-                            "A failed load or challenge must be inconclusive. Highlight uncertainty. "
+                            "Assess the observed page, not absolute trustworthiness. If the intended page "
+                            "loaded with readable content and no concrete threats, low_risk is appropriate "
+                            "with limited confidence; missing reputation, WHOIS, exhaustive malware testing "
+                            "or proof of ownership alone does not require inconclusive. Reserve inconclusive "
+                            "for genuinely insufficient evidence such as a missing page, access challenge, "
+                            "or blank content. Concrete observed threats may still justify suspicious/high_risk "
+                            "despite incomplete coverage. Never infer safety solely from a known domain. "
+                            "Keep summary under 600 characters, recommendation under 450 characters, "
+                            "and findings/limitations to at most six short items each. "
                             "Recommend concrete actions. Never say a site is guaranteed safe."
                         }
                     ]
@@ -238,7 +272,7 @@ class Gemini:
                 "generationConfig": {
                     "responseMimeType": "application/json",
                     "responseSchema": SCHEMA,
-                    "maxOutputTokens": 2400,
+                    "maxOutputTokens": 8192,
                     "temperature": 0.1,
                 },
             }

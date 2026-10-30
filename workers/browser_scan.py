@@ -24,6 +24,96 @@ def safe_url(value):
         return "[invalid URL]"
 
 
+def detect_challenge(title, text):
+    title = title.strip().lower()
+    text = text.strip().lower()
+    if title in (
+        "robot check",
+        "just a moment...",
+        "just a moment",
+        "access denied",
+        "captcha",
+    ):
+        return True
+    if "attention required" in title and "cloudflare" in title:
+        return True
+    # A mention of CAPTCHA in an article is not itself an access challenge.
+    return len(text) < 2500 and any(
+        phrase in text
+        for phrase in (
+            "verify you are human",
+            "checking your browser",
+            "verify that you are not a robot",
+            "enter the characters you see",
+            "type the characters you see",
+            "complete the security check",
+            "performing security verification",
+            "sorry, we just need to make sure you're not a robot",
+        )
+    )
+
+
+async def snapshot(page):
+    return await page.evaluate("""() => ({
+        title: document.title.slice(0, 300),
+        text: (document.body?.innerText || '').slice(0, 18000),
+        forms: [...document.forms].slice(0, 20).map(f => ({
+            action: f.action, method: f.method,
+            inputs: [...f.querySelectorAll('input')].slice(0, 30).map(i => ({
+                type: i.type, name: i.name.slice(0,100),
+                placeholder: i.placeholder.slice(0,150)}))})),
+        frames: [...document.querySelectorAll('iframe')].slice(0,10).map(f=>f.src)
+    })""")
+
+
+async def settle_page(page):
+    """Wait 4–12 seconds for readable, stable content; allow transient challenges to clear."""
+    previous, stable, last = None, 0, None
+    for elapsed in range(1, 13):
+        await page.wait_for_timeout(1000)
+        try:
+            async with asyncio.timeout(2):
+                last = await snapshot(page)
+        except Exception:
+            continue
+        signature = (page.url, last["title"], last["text"])
+        stable = stable + 1 if signature == previous else 0
+        previous = signature
+        readable = len(last["text"].strip()) >= 80 or bool(last["forms"])
+        if (
+            elapsed >= 4
+            and stable >= 2
+            and readable
+            and not detect_challenge(last["title"], last["text"])
+        ):
+            return last, elapsed
+    return last, 12
+
+
+async def navigate(page, url, evidence):
+    evidence["navigation_attempts"] = 0
+    for attempt in range(2):
+        evidence["navigation_attempts"] += 1
+        evidence["status"] = None
+        try:
+            response = await page.goto(
+                url,
+                wait_until="domcontentloaded",
+                timeout=25000 if attempt == 0 else 15000,
+            )
+            if response:
+                evidence["status"] = response.status
+        except Exception:
+            evidence["errors"].append(
+                "Navigation did not finish normally; any rendered content was still inspected."
+            )
+        status = evidence.get("status")
+        if attempt == 0 and (status is None or status >= 500):
+            await page.wait_for_timeout(1500)
+            continue
+        break
+
+
 class PublicProxy:
     """Resolve once, validate every address, connect to the validated numeric IP.
 
@@ -71,9 +161,19 @@ class PublicProxy:
                         self.blocked.append(host[:200])
                     raise ValueError("private address blocked")
                 # Numeric IP prevents the connect from resolving the hostname again.
-                incoming, upstream = await asyncio.open_connection(
-                    addresses[0][4][0], port
+                # Try alternate validated addresses if one network path is unavailable.
+                ips = sorted(
+                    {info[4][0] for info in addresses}, key=lambda ip: ":" in ip
                 )
+                for ip in ips[:4]:
+                    try:
+                        async with asyncio.timeout(4):
+                            incoming, upstream = await asyncio.open_connection(ip, port)
+                        break
+                    except (OSError, asyncio.TimeoutError):
+                        continue
+                if upstream is None:
+                    raise OSError("No validated destination address was reachable")
                 if method == "CONNECT":
                     writer.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
                 else:
@@ -207,44 +307,38 @@ async def scan(url):
                 def on_response(response):
                     if (
                         response.request.is_navigation_request()
+                        and response.request.frame == page.main_frame
                         and len(evidence["redirects"]) < 20
                     ):
+                        evidence["status"] = response.status
                         evidence["redirects"].append(
                             {"url": safe_url(response.url), "status": response.status}
                         )
 
                 page.on("request", on_request)
                 page.on("response", on_response)
-                try:
-                    response = await page.goto(
-                        url, wait_until="domcontentloaded", timeout=30000
-                    )
-                    evidence["status"] = response.status if response else None
-                    await page.wait_for_timeout(4000)
-                    evidence["loaded"] = bool(response and response.ok)
-                except Exception:
-                    evidence["errors"].append(
-                        "Navigation failed, timed out, or a download replaced the page."
-                    )
+                await navigate(page, url, evidence)
+                content, seconds = await settle_page(page)
+                evidence["observation_seconds"] = seconds
                 evidence["final_url"] = safe_url(page.url)
-                if urlsplit(page.url).scheme not in ("http", "https"):
-                    evidence["loaded"] = False
-                try:
-                    evidence.update(await page.evaluate("""() => ({
-                        title: document.title.slice(0, 300),
-                        text: (document.body?.innerText || '').slice(0, 18000),
-                        forms: [...document.forms].slice(0, 20).map(f => ({
-                            action: f.action, method: f.method,
-                            inputs: [...f.querySelectorAll('input')].slice(0, 30).map(i => ({
-                                type: i.type, name: i.name.slice(0,100),
-                                placeholder: i.placeholder.slice(0,150)}))})),
-                        frames: [...document.querySelectorAll('iframe')].slice(0,10).map(f=>f.src)
-                    })"""))
+                evidence["loaded"] = (
+                    urlsplit(page.url).scheme in ("http", "https")
+                    and isinstance(evidence.get("status"), int)
+                    and 200 <= evidence["status"] < 300
+                )
+                evidence["content_captured"] = content is not None
+                if content is not None:
+                    evidence.update(content)
                     for form in evidence.get("forms", []):
                         form["action"] = safe_url(form["action"])
                     evidence["frames"] = [
                         safe_url(x) for x in evidence.get("frames", [])
                     ]
+                else:
+                    evidence["errors"].append(
+                        "Visible page content could not be captured."
+                    )
+                try:
                     screenshot = base64.b64encode(
                         await page.screenshot(
                             type="jpeg",
@@ -255,21 +349,21 @@ async def scan(url):
                     ).decode()
                 except Exception:
                     evidence["errors"].append(
-                        "Page content or screenshot could not be captured."
+                        "Screenshot could not be captured; text evidence was retained."
                     )
-                text = evidence.get("text", "").lower()
-                evidence["challenge"] = any(
-                    x in text
-                    for x in (
-                        "verify you are human",
-                        "checking your browser",
-                        "captcha",
-                        "access denied",
-                    )
+                evidence["screenshot_captured"] = bool(screenshot)
+                evidence["challenge"] = detect_challenge(
+                    evidence.get("title", ""), evidence.get("text", "")
+                )
+                evidence["content_empty"] = (
+                    content is not None
+                    and not evidence.get("text", "").strip()
+                    and not evidence.get("forms")
+                    and not evidence.get("frames")
                 )
                 evidence["blocked_hosts"] = proxy.blocked
                 evidence["coverage"] = (
-                    "One page, anonymous browser, four-second observation; "
+                    f"One page, anonymous browser, {seconds}-second readiness observation; "
                     "no forms submitted, no login, no files executed. Embedded frames are not inspected in depth."
                 )
                 await context.close()

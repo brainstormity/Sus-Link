@@ -62,12 +62,18 @@ class ReportView(OwnerView):
             report_heading(report["verdict"], message_url)
             + f"**Observed-signal score:** {report['score']}/100\n"
             f"**AI assessment confidence:** {display(ai['confidence'], 40)}\n\n"
-            f"{display(ai['summary'], 700)}\n\n"
+            f"{display(ai['summary'], 700)}\n"
             f"## Recommendation\n{display(ai['recommendation'], 550)}"
         )
         super().__init__(
             bot, body, accent_color=COLORS[report["verdict"]], include_footer=False
         )
+        reasons = report.get("assessment_reasons", [])
+        if reasons:
+            self.add_separator().add_body(
+                "## Inspection limits\n"
+                + "\n".join("• " + display(reason, 240) for reason in reasons[:3])
+            )
         findings = report["findings"][:4]
         self.add_separator().add_body(
             "## Observed evidence\n"
