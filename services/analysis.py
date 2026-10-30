@@ -242,6 +242,7 @@ class Gemini:
                     "temperature": 0.1,
                 },
             }
+            data = None
             try:
                 status, data = await self.request_model(model, body, state, budget)
                 if status == 429:
@@ -269,15 +270,19 @@ class Gemini:
                 if status >= 400:
                     state.reason = f"provider_http_{status}"
                     await state.save()
-                    failures.append(
-                        f"{model}: HTTP {status}; preferred model failed without a quota limit"
-                    )
+                    failures.append(f"{model}: HTTP {status}")
+                    if status in (401, 403):
+                        log.warning(
+                            "Gemini authentication/permission failure (HTTP %s); check API credentials.",
+                            status,
+                        )
+                        break
                     log.warning(
-                        "Gemini %s failed with HTTP %s; not downgrading for a non-quota error.",
+                        "Gemini %s failed with HTTP %s; trying next model.",
                         model,
                         status,
                     )
-                    break
+                    continue
                 text = "".join(
                     part.get("text", "")
                     for part in data.get("candidates", [{}])[0]
@@ -320,17 +325,36 @@ class Gemini:
                 ValueError,
                 KeyError,
                 IndexError,
-            ):
-                state.reason = "request_failed_or_invalid_response"
+                TypeError,
+                AttributeError,
+            ) as error:
+                if isinstance(error, asyncio.TimeoutError):
+                    reason = "request_timeout"
+                elif isinstance(error, aiohttp.ClientError):
+                    reason = "connection_or_http_response_error"
+                else:
+                    reason = "invalid_report"
+                    candidates = (
+                        data.get("candidates", []) if isinstance(data, dict) else []
+                    )
+                    if (
+                        isinstance(candidates, list)
+                        and candidates
+                        and isinstance(candidates[0], dict)
+                    ):
+                        finish = candidates[0].get("finishReason")
+                        if finish in ("MAX_TOKENS", "SAFETY", "RECITATION"):
+                            reason += "_" + finish.lower()
+                state.reason = reason
                 await state.save()
-                failures.append(
-                    f"{model}: unavailable or invalid response; no non-quota downgrade"
-                )
+                failures.append(f"{model}: {reason}; trying next model")
                 log.warning(
-                    "Gemini %s request failed or returned an invalid report; not downgrading.",
+                    "Gemini %s failed (%s, %s); trying next model.",
                     model,
+                    reason,
+                    type(error).__name__,
                 )
-                break
+                continue
         return {
             "summary": "AI analysis is unavailable. Review the observed evidence below.",
             "recommendation": "Avoid entering sensitive information until the scan can be assessed.",

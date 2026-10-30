@@ -323,27 +323,89 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(model, "first")
             self.assertIn("/first:", session.post.call_args.args[0])
 
-    async def test_invalid_output_does_not_downgrade(self):
+    async def test_invalid_output_falls_back_without_cooldown(self):
+        from unittest.mock import MagicMock
+
+        session = MagicMock()
+        report = {
+            "summary": "Test",
+            "recommendation": "Use caution",
+            "confidence": "low",
+            "assessment": "low_risk",
+            "findings": [],
+            "limitations": [],
+        }
+        session.post.side_effect = [
+            FakeResponse(
+                200,
+                {
+                    "candidates": [
+                        {
+                            "content": {"parts": [{"text": "truncated JSON"}]},
+                            "finishReason": "MAX_TOKENS",
+                        }
+                    ]
+                },
+            ),
+            FakeResponse(
+                200,
+                {
+                    "candidates": [
+                        {"content": {"parts": [{"text": json.dumps(report)}]}}
+                    ]
+                },
+            ),
+        ]
+        with patch.object(config, "GEMINI_MODELS", ("first", "second")):
+            result, model = await Gemini(session).analyze({}, "", {})
+        self.assertEqual(model, "second")
+        self.assertEqual(session.post.call_count, 2)
+        self.assertIn("invalid_report_max_tokens", result["model_notes"][0])
+        state = await ModelState.get(name="first")
+        self.assertIsNone(state.retry_at)
+        self.assertIsNone(state.limited_at)
+
+    async def test_timeout_falls_back_to_next_model(self):
+        from unittest.mock import MagicMock
+
+        session = MagicMock()
+        report = {
+            "summary": "Test",
+            "recommendation": "Use caution",
+            "confidence": "low",
+            "assessment": "low_risk",
+            "findings": [],
+            "limitations": [],
+        }
+        session.post.side_effect = [
+            asyncio.TimeoutError(),
+            FakeResponse(
+                200,
+                {
+                    "candidates": [
+                        {"content": {"parts": [{"text": json.dumps(report)}]}}
+                    ]
+                },
+            ),
+        ]
+        with patch.object(config, "GEMINI_MODELS", ("first", "second")):
+            result, model = await Gemini(session).analyze({}, "", {})
+        self.assertEqual(model, "second")
+        self.assertIn("request_timeout", result["model_notes"][0])
+        self.assertIsNone((await ModelState.get(name="first")).retry_at)
+
+    async def test_authentication_failure_does_not_try_other_models(self):
         from unittest.mock import MagicMock
 
         session = MagicMock()
         session.post.return_value = FakeResponse(
-            200,
-            {
-                "candidates": [
-                    {
-                        "content": {"parts": [{"text": "truncated JSON"}]},
-                        "finishReason": "MAX_TOKENS",
-                    }
-                ]
-            },
+            403, {"error": {"status": "PERMISSION_DENIED"}}
         )
         with patch.object(config, "GEMINI_MODELS", ("first", "second")):
             result, model = await Gemini(session).analyze({}, "", {})
         self.assertEqual(model, "")
         self.assertEqual(session.post.call_count, 1)
-        self.assertIsNone(await ModelState.get_or_none(name="second"))
-        self.assertIn("invalid response", result["limitations"][0])
+        self.assertIn("HTTP 403", result["limitations"][0])
 
     async def test_all_models_exhausted_returns_evidence_only(self):
         from unittest.mock import MagicMock
