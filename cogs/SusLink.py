@@ -216,7 +216,12 @@ class SusLink(commands.Cog):
                 card = b""
                 try:
                     card = await asyncio.to_thread(
-                        render_score_card, {**scan.report, "model": scan.model}
+                        render_score_card,
+                        {
+                            **scan.report,
+                            "model": scan.model,
+                            "domain": urlsplit(url).hostname,
+                        },
                     )
                 except Exception as render_error:
                     log.warning(

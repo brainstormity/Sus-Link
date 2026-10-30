@@ -109,7 +109,14 @@ def render_score_card(report):
     text(337, 321, "100", 17, "#8190a6", anchor="ma")
     text(cx, 355, "Lower score = lower assessed risk", 15, "#8190a6", anchor="ma")
 
-    text(510, 52, "LINK RISK ASSESSMENT", 17, "#a8b5cb")
+    domain = str(report.get("domain") or "")
+    heading = "LINK RISK ASSESSMENT" + (f" - {domain}" if domain else "")
+    # Keep long hostnames inside the card rather than overlapping its edge.
+    if draw.textlength(heading, font=font(17)) > 650 * SCALE:
+        while draw.textlength(heading + "...", font=font(17)) > 650 * SCALE:
+            heading = heading[:-1]
+        heading += "..."
+    text(510, 52, heading, 17, "#a8b5cb")
     text(508, 91, verdict, 56, accent, bold=True)
     subtitles = {
         "Low risk": "No strong warning signals observed",
