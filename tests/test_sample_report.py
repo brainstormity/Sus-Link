@@ -41,6 +41,7 @@ class SampleReportTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIsInstance(result["view"], ReportView)
                 payload = str(result["view"].to_components())
                 self.assertIn("SAMPLE REPORT", payload)
+                self.assertIn("**Inspection Limits**", payload)
                 self.assertIn("attachment://risk-score.png", payload)
                 self.assertIn("attachment://sus-link.jpg", payload)
                 self.assertLessEqual(result["view"].content_length(), 4000)

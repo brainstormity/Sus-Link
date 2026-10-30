@@ -55,7 +55,10 @@ def sample_scan(kind):
         "assessment_reasons": (
             ["An access challenge prevented inspection of the intended page."]
             if limited
-            else []
+            else [
+                "Only the public landing page was inspected; authenticated pages were not tested.",
+                "Form submissions and downloaded files were not executed.",
+            ]
         ),
         "ai": {
             "summary": summary,
