@@ -1,6 +1,6 @@
 # Sus Link
 
-Private, owner-only Discord message context command that opens a URL in an Instabox VM, collects browser evidence, and generates a Gemini threat assessment. All interaction replies are ephemeral Components V2 layouts built through `core/reply.py`.
+Sus Link is a Discord bot that helps you investigate suspicious links without opening them on your own device. Right-click a message to inspect its links in an isolated Instabox cloud browser, check for phishing patterns, deceptive forms, unexpected redirects, and attempted downloads, and receive a private threat report with a risk score, screenshots, and an AI-powered assessment from Gemini.
 
 ## Free-tier setup
 
