@@ -16,6 +16,12 @@ Only the bot owner can use it. The command acknowledgement is ephemeral, includi
 
 A risk score is not a probability or a guarantee of safety. If the page is missing, blocked, empty, or AI analysis is unavailable, the report explains that under **Inspection limits**. Without sufficient evidence the verdict remains **Inconclusive**; concrete warning signals can still justify **Suspicious** or **High risk** despite limited coverage. See [scanning limitations](technical-details.md).
 
+## Preview the report layout
+
+Run **`/sample-report`** for an instant, private preview using the same container, score card, and screenshot layout as a real report. The header says **SAMPLE REPORT**. Optionally choose Low risk, Suspicious, High risk, or Inconclusive using the `verdict` option. This owner-only command uses fictional data and a locally drawn example page; it makes no Instabox or Gemini requests and saves no scan record.
+
+After adding this command, restart the bot and DM it `!sync` once to register it manually.
+
 ## If the command is missing
 
 - Start the bot and send `!sync` in a DM directly with it.

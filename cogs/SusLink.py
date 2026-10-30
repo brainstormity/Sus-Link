@@ -11,6 +11,7 @@ from discord.ext import commands
 
 from core.reply import ReplyView
 from services.report_card import render_score_card
+from services.sample_report import sample_scan, render_sample_assets
 from services.urls import extract_urls, redact_url
 
 log = logging.getLogger(__name__)
@@ -165,6 +166,39 @@ class SusLink(commands.Cog):
             ),
         )
         bot.tree.add_command(self.context_menu)
+
+    @app_commands.command(
+        name="sample-report",
+        description="Preview the report layout instantly using fictional data.",
+    )
+    @app_commands.allowed_installs(guilds=True, users=True)
+    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+    @app_commands.choices(
+        verdict=[
+            app_commands.Choice(name="Low risk", value="low_risk"),
+            app_commands.Choice(name="Suspicious", value="suspicious"),
+            app_commands.Choice(name="High risk", value="high_risk"),
+            app_commands.Choice(name="Inconclusive", value="inconclusive"),
+        ]
+    )
+    async def sample_report(
+        self, interaction: discord.Interaction, verdict: str = "suspicious"
+    ):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        if not await self.bot.is_owner(interaction.user):
+            await interaction.edit_original_response(
+                view=ReplyView("Only the bot owner can use Sus Link.")
+            )
+            return
+        scan = sample_scan(verdict)
+        card, picture = await asyncio.to_thread(render_sample_assets, scan.report)
+        await interaction.edit_original_response(
+            view=ReportView(self.bot, scan, picture, "SAMPLE REPORT", score_card=True),
+            attachments=[
+                discord.File(io.BytesIO(card), filename="risk-score.png"),
+                discord.File(io.BytesIO(picture), filename="sus-link.jpg"),
+            ],
+        )
 
     async def cog_unload(self):
         self.bot.tree.remove_command(
