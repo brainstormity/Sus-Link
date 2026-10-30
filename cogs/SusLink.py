@@ -207,9 +207,7 @@ class SusLink(commands.Cog):
                 )
                 return
             await interaction.edit_original_response(
-                view=ReplyView(
-                    f"Inspecting {url}. **I'll DM you the report once ready** 🤝"
-                )
+                content=f"Inspecting {url}. **I'll DM you the report once ready** 🤝"
             )
             try:
                 scan, picture = await scanner.run(url)
@@ -257,6 +255,7 @@ class SusLink(commands.Cog):
             except discord.HTTPException:
                 log.warning("Sus Link DM delivery failed.")
                 await interaction.edit_original_response(
+                    content=None,
                     view=ReplyView(
                         "I couldn't DM your report. Enable direct messages from this bot, "
                         "then run Sus Link Checker again."

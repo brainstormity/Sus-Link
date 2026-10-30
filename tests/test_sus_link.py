@@ -501,9 +501,8 @@ class DiscordTests(unittest.IsolatedAsyncioTestCase):
             interaction, "https://example.com", "https://discord.com/channels/1/2/3"
         )
         interaction.edit_original_response.assert_awaited_once()
-        ack = json.dumps(
-            interaction.edit_original_response.call_args.kwargs["view"].to_components()
-        )
+        ack = interaction.edit_original_response.call_args.kwargs["content"]
+        self.assertNotIn("view", interaction.edit_original_response.call_args.kwargs)
         self.assertIn("Inspecting https://example.com", ack)
         self.assertIn("I'll DM you the report once ready", ack)
         dm.send.assert_awaited_once()
