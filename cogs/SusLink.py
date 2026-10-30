@@ -74,23 +74,27 @@ class ReportView(OwnerView):
         self.add_body(body)
         reasons = report.get("assessment_reasons", [])
         if reasons:
-            self.add_separator().add_body(
-                "## Inspection limits\n"
-                + "\n".join("• " + display(reason, 240) for reason in reasons[:3])
+            self.add_separator(
+                spacing=discord.SeparatorSpacing.large, visible=False
+            ).add_body(
+                "**Inspection Limits**\n"
+                + "\n".join("> -# • " + display(reason, 240) for reason in reasons[:3])
             )
         findings = [f["finding"] for f in report["findings"][:3]]
         findings.extend(f"AI assessment: {item}" for item in ai.get("findings", [])[:3])
         findings = list(dict.fromkeys(findings))[:5]
-        self.add_separator().add_body(
-            "## Observed evidence\n"
+        self.add_separator(
+            spacing=discord.SeparatorSpacing.large, visible=False
+        ).add_body(
+            "**Observed Evidence**\n"
             + (
-                "\n".join(f"• {display(finding, 200)}" for finding in findings)
+                "\n".join(f"> -# • {display(finding, 200)}" for finding in findings)
                 if findings
-                else "See the assessment above for the reasoning behind this rating."
+                else "> -# See the assessment above for the reasoning behind this rating."
             )
         )
         if picture:
-            self.add_separator()
+            self.add_separator(spacing=discord.SeparatorSpacing.large, visible=False)
             self.add_header_image("attachment://sus-link.jpg")
         self.add_footer()
 

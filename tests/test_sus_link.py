@@ -625,7 +625,7 @@ class DiscordTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("Captured page", payload)
         self.assertNotIn("Sus Link ·", payload)
         self.assertIn("## Recommendation", payload)
-        self.assertIn("## Observed evidence", payload)
+        self.assertIn("**Observed Evidence**", payload)
         self.assertNotIn("Prepare isolated browser", payload)
         buttons = [
             item.label
