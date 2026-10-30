@@ -10,6 +10,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from core.reply import ReplyView
+from services.report_card import render_score_card
 from services.urls import extract_urls, redact_url
 
 log = logging.getLogger(__name__)
@@ -55,19 +56,24 @@ def report_heading(verdict, message_url=None):
 
 
 class ReportView(OwnerView):
-    def __init__(self, bot, scan, picture, message_url=None):
+    def __init__(self, bot, scan, picture, message_url=None, *, score_card=False):
         self.scan = scan
         report, ai = scan.report, scan.report["ai"]
         body = (
-            report_heading(report["verdict"], message_url)
-            + f"**Observed-signal score:** {report['score']}/100\n"
+            f"**Observed-signal score:** {report['score']}/100\n"
             f"**AI assessment confidence:** {display(ai['confidence'], 40)}\n\n"
             f"{display(ai['summary'], 700)}\n"
             f"## Recommendation\n{display(ai['recommendation'], 550)}"
         )
         super().__init__(
-            bot, body, accent_color=COLORS[report["verdict"]], include_footer=False
+            bot,
+            report_heading(report["verdict"], message_url),
+            accent_color=COLORS[report["verdict"]],
+            include_footer=False,
         )
+        if score_card:
+            self.add_header_image("attachment://risk-score.png")
+        self.add_body(body)
         reasons = report.get("assessment_reasons", [])
         if reasons:
             self.add_separator().add_body(
@@ -208,17 +214,31 @@ class SusLink(commands.Cog):
                 return
             await interaction.edit_original_response(
                 view=ReplyView(
-                    "Inspecting link. Your report will be sent to you by DM once ready."
+                    f"Inspecting {url}. **I'll DM you the report once ready** :hand_shake:"
                 )
             )
             try:
                 scan, picture = await scanner.run(url)
-                view = ReportView(self.bot, scan, picture, message_url)
+                card = b""
+                try:
+                    card = await asyncio.to_thread(render_score_card, scan.report)
+                except Exception as render_error:
+                    log.warning(
+                        "Report gauge unavailable (%s); sending text report.",
+                        type(render_error).__name__,
+                    )
+                view = ReportView(
+                    self.bot, scan, picture, message_url, score_card=bool(card)
+                )
                 files = (
                     [discord.File(io.BytesIO(picture), filename="sus-link.jpg")]
                     if picture
                     else []
                 )
+                if card:
+                    files.append(
+                        discord.File(io.BytesIO(card), filename="risk-score.png")
+                    )
             except Exception as error:
                 log.error("Sus Link scan failed (%s)", type(error).__name__)
                 from services.instabox import InstaboxError

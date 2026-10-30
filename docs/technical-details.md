@@ -13,6 +13,10 @@ URL query strings are redacted in stored URL metadata and reports, but the real 
 
 SQLite stores machine identity, model budgets/cooldowns, and scan evidence/reports in `database/db.sqlite3` by default. The `database/` folder is created automatically and excluded from Git, including SQLite journal files. If upgrading from the old root-level `db.sqlite3`, stop the running bot before restarting: startup moves the existing database and its SQLite sidecar files into `database/`. Migration refuses to move a database that is still open and never overwrites an existing destination database. Screenshots are attached directly to the private Discord report rather than being written to the local database. Scan records currently have no automatic retention cleanup. No Discord message body, user record, or API key is saved in the scan tables.
 
+## Report graphics
+
+Pillow generates the risk gauge locally; no AI image generation is used. Rendering runs through `asyncio.to_thread(...)` so Pillow's CPU work does not block Discord's event loop. The PNG is attached directly to the DM report. Inconclusive assessments show a neutral, unrated gauge; a zero observed-signal score is not presented as proof of safety. If rendering fails, the text report and captured screenshot are still delivered.
+
 ## Assessment quality
 
 Reports list specific inspection limits: missing pages, denied access, bot challenges, empty content, or unavailable AI. A failed check is not a clean bill of health. Concrete warning evidence remains visible even when coverage is incomplete. A readable page without detected threats can receive Low risk with appropriately limited confidence; this is not a guarantee of safety. Missing domain ownership or reputation data alone does not force an inconclusive result. Gemini has an 8,192-token output allowance to reduce truncated structured responses.

@@ -8,3 +8,4 @@ tortoise-orm==1.1.9
 aiosqlite==0.22.1
 python-dotenv==1.2.4
 aiohttp>=3.13,<4
+Pillow>=12,<13
