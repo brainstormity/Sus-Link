@@ -20,7 +20,7 @@ class GaugeTests(unittest.TestCase):
             ("Low risk", 0),
             ("Suspicious", 42),
             ("High risk", 100),
-            ("Inconclusive", 0),
+            ("Inconclusive", None),
         ]:
             with self.subTest(verdict=verdict):
                 report = {

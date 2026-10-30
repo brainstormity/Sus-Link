@@ -78,13 +78,15 @@ class ReportView(OwnerView):
                 "## Inspection limits\n"
                 + "\n".join("• " + display(reason, 240) for reason in reasons[:3])
             )
-        findings = report["findings"][:4]
+        findings = [f["finding"] for f in report["findings"][:3]]
+        findings.extend(f"AI assessment: {item}" for item in ai.get("findings", [])[:3])
+        findings = list(dict.fromkeys(findings))[:5]
         self.add_separator().add_body(
             "## Observed evidence\n"
             + (
-                "\n".join(f"• {display(f['finding'], 200)}" for f in findings)
+                "\n".join(f"• {display(finding, 200)}" for finding in findings)
                 if findings
-                else "No scored warning signals were observed during this limited inspection."
+                else "See the assessment above for the reasoning behind this rating."
             )
         )
         if picture:
@@ -259,7 +261,7 @@ class SusLink(commands.Cog):
                     view=ReplyView(
                         "I couldn't DM your report. Enable direct messages from this bot, "
                         "then run Sus Link Checker again."
-                    )
+                    ),
                 )
 
 

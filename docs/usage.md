@@ -10,7 +10,7 @@
 4. The command confirms: “Inspecting link. Your report will be sent to you by DM once ready.”
 5. Open the bot’s DM to read the finished report.
 
-The report header links back to the original checked message. The report includes a verdict, an observed-signal risk score, AI confidence, and recommended action. The captured screenshot appears directly on the report when available. The Evidence button is currently hidden. To run another scan, use **Apps → Sus Link Checker** again.
+The report header links back to the original checked message. The report includes a verdict, an overall risk score, AI confidence, and recommended action. The captured screenshot appears directly on the report when available. The Evidence button is currently hidden. To run another scan, use **Apps → Sus Link Checker** again.
 
 Only the bot owner can use it. The command acknowledgement is ephemeral, including in DMs with other people and group DMs. Finished reports are ordinary private messages sent directly by the bot, with the screenshot attached. One scan runs at a time; there are no progress edits.
 

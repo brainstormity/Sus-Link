@@ -235,6 +235,7 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
             "recommendation": "Use caution",
             "confidence": "medium",
             "assessment": "suspicious",
+            "risk_score": 42,
             "findings": ["An observation"],
             "limitations": [],
         }
@@ -288,6 +289,7 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
             "recommendation": "Use caution",
             "confidence": "low",
             "assessment": "low_risk",
+            "risk_score": 12,
             "findings": [],
             "limitations": [],
         }
@@ -332,6 +334,7 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
             "recommendation": "Use caution",
             "confidence": "low",
             "assessment": "low_risk",
+            "risk_score": 12,
             "findings": [],
             "limitations": [],
         }
@@ -374,6 +377,7 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
             "recommendation": "Use caution",
             "confidence": "low",
             "assessment": "low_risk",
+            "risk_score": 12,
             "findings": [],
             "limitations": [],
         }
@@ -406,6 +410,36 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(model, "")
         self.assertEqual(session.post.call_count, 1)
         self.assertIn("HTTP 403", result["limitations"][0])
+
+    async def test_inconsistent_ai_score_is_rejected_and_falls_back(self):
+        from unittest.mock import MagicMock
+
+        session = MagicMock()
+        report = {
+            "summary": "Phishing observed",
+            "recommendation": "Avoid",
+            "confidence": "high",
+            "assessment": "high_risk",
+            "risk_score": 0,
+            "findings": ["Impersonation"],
+            "limitations": [],
+        }
+
+        def response(value):
+            return FakeResponse(
+                200,
+                {"candidates": [{"content": {"parts": [{"text": json.dumps(value)}]}}]},
+            )
+
+        session.post.side_effect = [
+            response(report),
+            response({**report, "risk_score": 85}),
+        ]
+        with patch.object(config, "GEMINI_MODELS", ("first", "second")):
+            result, model = await Gemini(session).analyze({}, "", {})
+        self.assertEqual(model, "second")
+        self.assertEqual(result["risk_score"], 85)
+        self.assertEqual(session.post.call_count, 2)
 
     async def test_all_models_exhausted_returns_evidence_only(self):
         from unittest.mock import MagicMock

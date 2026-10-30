@@ -15,7 +15,11 @@ SQLite stores machine identity, model budgets/cooldowns, and scan evidence/repor
 
 ## Report graphics
 
-Pillow generates the risk gauge locally; no AI image generation is used. Rendering runs through `asyncio.to_thread(...)` so Pillow's CPU work does not block Discord's event loop. The PNG is attached directly to the DM report. Inconclusive assessments show a neutral, unrated gauge; a zero observed-signal score is not presented as proof of safety. If rendering fails, the text report and captured screenshot are still delivered.
+Pillow generates the risk gauge locally; no AI image generation is used. Rendering runs through `asyncio.to_thread(...)` so Pillow's CPU work does not block Discord's event loop. The PNG is attached directly to the DM report. Inconclusive assessments show a neutral, unrated gauge; no numeric overall score is assigned when there is insufficient evidence. If rendering fails, the text report and captured screenshot are still delivered.
+
+## Overall risk score
+
+The card displays one overall score combining Gemini's visual/contextual assessment and the observed browser-rule findings. The higher score wins, so AI-detected phishing cannot appear as zero risk just because no Python rule triggered. Score bands are **0–24 Low risk**, **25–59 Suspicious**, and **60–100 High risk**. Gemini responses are validated against those bands. The final verdict is derived from the combined score; inconclusive reports have no overall score and show **Not rated**. The raw rule score remains internal supporting evidence. These are heuristic ratings, not calibrated probabilities.
 
 ## Assessment quality
 

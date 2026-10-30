@@ -11,6 +11,7 @@ import aiohttp
 
 from core import config
 from core.models import ModelState
+from services.assessment import SCORE_BANDS
 
 log = logging.getLogger(__name__)
 
@@ -162,6 +163,7 @@ SCHEMA = {
         "summary": {"type": "STRING"},
         "recommendation": {"type": "STRING"},
         "confidence": {"type": "STRING", "enum": ["low", "medium", "high"]},
+        "risk_score": {"type": "INTEGER", "minimum": 0, "maximum": 100},
         "assessment": {
             "type": "STRING",
             "enum": ["low_risk", "suspicious", "high_risk", "inconclusive"],
@@ -174,6 +176,7 @@ SCHEMA = {
         "recommendation",
         "confidence",
         "assessment",
+        "risk_score",
         "findings",
         "limitations",
     ],
@@ -264,6 +267,12 @@ class Gemini:
                             "despite incomplete coverage. Never infer safety solely from a known domain. "
                             "Keep summary under 600 characters, recommendation under 450 characters, "
                             "and findings/limitations to at most six short items each. "
+                            "Provide risk_score as an integer from 0 to 100 based on all observed evidence. "
+                            "Use 0–24 for low_risk, 25–59 for suspicious, and 60–100 for high_risk; "
+                            "the score and assessment MUST agree. Use 0 for inconclusive, which will be "
+                            "displayed as Not rated rather than as a numeric risk. Explain the key evidence "
+                            "behind the score in summary/findings. Never copy the rule-only score if the "
+                            "visual or contextual evidence supports a different assessment. "
                             "Recommend concrete actions. Never say a site is guaranteed safe."
                         }
                     ]
@@ -349,6 +358,13 @@ class Gemini:
                     "inconclusive",
                 ):
                     raise ValueError("Invalid assessment")
+                score = result["risk_score"]
+                if type(score) is not int or not 0 <= score <= 100:
+                    raise ValueError("Invalid risk score")
+                if result["assessment"] in SCORE_BANDS:
+                    lower, upper = SCORE_BANDS[result["assessment"]]
+                    if not lower <= score <= upper:
+                        raise ValueError("Risk score disagrees with assessment")
                 state.retry_at, state.reason = None, ""
                 await state.save()
                 result["model_notes"] = failures
@@ -394,6 +410,7 @@ class Gemini:
             "recommendation": "Avoid entering sensitive information until the scan can be assessed.",
             "confidence": "low",
             "assessment": "inconclusive",
+            "risk_score": 0,
             "findings": [],
             "limitations": failures
             or [

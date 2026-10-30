@@ -47,9 +47,9 @@ def score_color(value):
 
 def render_score_card(report):
     """Return a PNG; no network calls, AI image generation, or disk writes."""
-    score = max(0, min(100, int(report["score"])))
     verdict = report["verdict"]
-    unknown = verdict == "Inconclusive"
+    unknown = verdict == "Inconclusive" or report.get("score") is None
+    score = 0 if unknown else max(0, min(100, int(report["score"])))
     accent = PALETTE.get(verdict, PALETTE["Inconclusive"])
     image = Image.new("RGB", (WIDTH * SCALE, HEIGHT * SCALE), "#10151f")
     draw = ImageDraw.Draw(image)
@@ -77,7 +77,7 @@ def render_score_card(report):
     draw.line(
         (460 * SCALE, 48 * SCALE, 460 * SCALE, 366 * SCALE), fill="#303b4c", width=SCALE
     )
-    text(225, 36, "OBSERVED-SIGNAL SCORE", 17, "#a8b5cb", anchor="ma")
+    text(225, 36, "OVERALL RISK SCORE", 17, "#a8b5cb", anchor="ma")
     cx, cy, radius, thickness = 225, 213, 132, 22
     bounds = tuple(
         v * SCALE for v in (cx - radius, cy - radius, cx + radius, cy + radius)
@@ -107,7 +107,7 @@ def render_score_card(report):
     text(cx, 248, "NOT RATED" if unknown else "OUT OF 100", 18, "#a8b5cb", anchor="ma")
     text(113, 321, "0", 17, "#8190a6", anchor="ma")
     text(337, 321, "100", 17, "#8190a6", anchor="ma")
-    text(cx, 355, "Lower score = fewer observed signals", 15, "#8190a6", anchor="ma")
+    text(cx, 355, "Lower score = lower assessed risk", 15, "#8190a6", anchor="ma")
 
     text(510, 52, "LINK RISK ASSESSMENT", 17, "#a8b5cb")
     text(508, 91, verdict, 56, accent, bold=True)
@@ -131,7 +131,7 @@ def render_score_card(report):
         text(
             510,
             324,
-            f"Observed signals: {score}/100. This does not establish safety.",
+            "Assessment incomplete. No overall score assigned.",
             17,
             "#a8b5cb",
         )
@@ -139,7 +139,7 @@ def render_score_card(report):
         text(
             510,
             324,
-            "Observed signals and AI verdict are assessed separately.",
+            "Combines page evidence and AI assessment.",
             17,
             "#a8b5cb",
         )

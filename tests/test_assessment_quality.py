@@ -95,6 +95,77 @@ class CoverageTests(unittest.TestCase):
         )
 
 
+class OverallScoreTests(unittest.TestCase):
+    def test_ai_high_risk_with_zero_rule_signals_is_not_zero_risk(self):
+        evidence = {"loaded": True}
+        report = combine(
+            evidence,
+            evaluate(evidence),
+            {"assessment": "high_risk", "risk_score": 87},
+            "test",
+        )
+        self.assertEqual(report["rule_score"], 0)
+        self.assertEqual(report["score"], 87)
+        self.assertEqual(report["verdict"], "High risk")
+
+    def test_warning_rules_cannot_be_lowered_by_ai(self):
+        evidence = {
+            "loaded": True,
+            "downloads": ["file"],
+            "text": "Your computer is infected",
+        }
+        report = combine(
+            evidence,
+            evaluate(evidence),
+            {"assessment": "low_risk", "risk_score": 10},
+            "test",
+        )
+        self.assertEqual(report["score"], 75)
+        self.assertEqual(report["verdict"], "High risk")
+
+    def test_score_bands_agree_with_verdict_at_boundaries(self):
+        evidence = {"loaded": True}
+        for score, assessment, verdict in [
+            (0, "low_risk", "Low risk"),
+            (24, "low_risk", "Low risk"),
+            (25, "suspicious", "Suspicious"),
+            (59, "suspicious", "Suspicious"),
+            (60, "high_risk", "High risk"),
+            (100, "high_risk", "High risk"),
+        ]:
+            with self.subTest(score=score):
+                report = combine(
+                    evidence,
+                    evaluate(evidence),
+                    {"assessment": assessment, "risk_score": score},
+                    "test",
+                )
+                self.assertEqual(report["score"], score)
+                self.assertEqual(report["verdict"], verdict)
+
+    def test_inconclusive_has_no_overall_score(self):
+        evidence = {"loaded": False, "status": 404}
+        report = combine(
+            evidence,
+            evaluate(evidence),
+            {"assessment": "inconclusive", "risk_score": 0},
+            "test",
+        )
+        self.assertIsNone(report["score"])
+        self.assertEqual(report["rule_score"], 0)
+
+    def test_legacy_high_risk_assessment_is_normalized_to_high_risk_band(self):
+        evidence = {"loaded": True}
+        report = combine(
+            evidence,
+            evaluate(evidence),
+            {"assessment": "high_risk", "risk_score": 0},
+            "test",
+        )
+        self.assertEqual(report["score"], 60)
+        self.assertEqual(report["verdict"], "High risk")
+
+
 class ReadinessTests(unittest.IsolatedAsyncioTestCase):
     def page(self):
         return SimpleNamespace(url="https://example.com", wait_for_timeout=AsyncMock())
