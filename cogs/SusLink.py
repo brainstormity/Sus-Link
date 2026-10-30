@@ -54,18 +54,18 @@ class ReportView(OwnerView):
         self.scan = scan
         report, ai = scan.report, scan.report["ai"]
         body = (
-            f"## Sus Link · {report['verdict']}\n"
+            f"## {report['verdict']}\n"
             f"**Observed-signal score:** {report['score']}/100\n"
             f"**AI assessment confidence:** {display(ai['confidence'], 40)}\n\n"
             f"{display(ai['summary'], 700)}\n\n"
-            f"**Recommendation**\n{display(ai['recommendation'], 550)}"
+            f"## Recommendation\n{display(ai['recommendation'], 550)}"
         )
         super().__init__(
             bot, body, accent_color=COLORS[report["verdict"]], include_footer=False
         )
         findings = report["findings"][:4]
         self.add_separator().add_body(
-            "**Observed evidence**\n"
+            "## Observed evidence\n"
             + (
                 "\n".join(f"• {display(f['finding'], 200)}" for f in findings)
                 if findings
@@ -77,33 +77,28 @@ class ReportView(OwnerView):
             f"Model: {display(scan.model or 'unavailable', 80)} · {scan.created_at:%Y-%m-%d %H:%M UTC}"
         )
         if picture:
-            self.add_separator().add_body("**Captured page**")
+            self.add_separator()
             self.add_header_image("attachment://sus-link.jpg")
-        button = discord.ui.Button(
-            label="Evidence - Full Trace", style=discord.ButtonStyle.primary
-        )
-        button.callback = self.evidence
-        self._container.add_item(discord.ui.ActionRow(button))
         self.add_footer()
 
     async def evidence(self, interaction):
         report, ai = self.scan.report, self.scan.report["ai"]
         redirects = self.scan.evidence.get("redirects", [])
-        text = "**Navigation**\n" + (
+        text = "## Navigation\n" + (
             "\n".join(
                 f"• HTTP {r['status']}: {display(r['url'], 220)}" for r in redirects[:8]
             )
             or "No navigation response captured."
         )
-        text += "\n\n**AI interpretation**\n" + (
+        text += "\n\n## AI interpretation\n" + (
             "\n".join("• " + display(x, 280) for x in ai["findings"][:5])
             or "No additional AI findings."
         )
         if ai.get("model_notes"):
-            text += "\n\n**Model selection**\n" + "\n".join(
+            text += "\n\n## Model selection\n" + "\n".join(
                 "• " + display(note, 180) for note in ai["model_notes"][:3]
             )
-        text += "\n\n**Coverage and limitations**\n" + display(
+        text += "\n\n## Coverage and limitations\n" + display(
             self.scan.evidence.get("coverage", ""), 400
         )
         limitations = ai["limitations"] + self.scan.evidence.get("errors", [])
@@ -220,7 +215,7 @@ class SusLink(commands.Cog):
                 else:
                     message = "The scan could not finish. Check the bot setup and provider status, then try again."
                 view = ReplyView(
-                    "## Sus Link · Scan incomplete\n"
+                    "## Scan incomplete\n"
                     + display(message)
                     + "\n\nNo safety verdict was produced.",
                     accent_color=COLORS["Inconclusive"],

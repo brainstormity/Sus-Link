@@ -517,21 +517,19 @@ class DiscordTests(unittest.IsolatedAsyncioTestCase):
         payload = json.dumps(view.to_components())
         self.assertIn("attachment://sus-link.jpg", payload)
         self.assertNotIn("Final destination", payload)
+        self.assertNotIn("Captured page", payload)
+        self.assertNotIn("Sus Link ·", payload)
+        self.assertIn("## Recommendation", payload)
+        self.assertIn("## Observed evidence", payload)
         self.assertNotIn("Prepare isolated browser", payload)
         buttons = [
             item.label
             for item in view.walk_children()
             if isinstance(item, __import__("discord").ui.Button)
         ]
-        self.assertEqual(buttons, ["Evidence - Full Trace"])
+        self.assertEqual(buttons, [])
         self.assertFalse(hasattr(view, "rescan"))
-        self.assertTrue(
-            all(
-                item.style == __import__("discord").ButtonStyle.primary
-                for item in view.walk_children()
-                if isinstance(item, __import__("discord").ui.Button)
-            )
-        )
+        self.assertTrue(callable(view.evidence))
         self.assertFalse(hasattr(view, "full_report"))
         self.assertEqual(
             LinkPicker(bot, None, ["https://example.com"]).to_components()[0]["type"],
