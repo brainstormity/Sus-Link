@@ -22,8 +22,8 @@ COLORS = {
 
 
 def display(value, limit=1500):
-    # Defang destinations and escape user/page/model Markdown and mentions.
-    value = str(value).replace("://", "[:]//")
+    # Preserve normal URLs while escaping untrusted Markdown and mentions.
+    value = str(value)
     return discord.utils.escape_markdown(discord.utils.escape_mentions(value))[:limit]
 
 
@@ -50,8 +50,8 @@ class OwnerView(ReplyView):
 
 
 class ReportView(OwnerView):
-    def __init__(self, bot, cog, scan, picture, url):
-        self.scan, self.url, self.cog = scan, url, cog
+    def __init__(self, bot, scan, picture):
+        self.scan = scan
         report, ai = scan.report, scan.report["ai"]
         body = (
             f"## Sus Link · {report['verdict']}\n"
@@ -79,19 +79,11 @@ class ReportView(OwnerView):
         if picture:
             self.add_separator().add_body("**Captured page**")
             self.add_header_image("attachment://sus-link.jpg")
-        row = discord.ui.ActionRow()
-        actions = [
-            ("Evidence", self.evidence),
-            ("Rescan", self.rescan),
-        ]
-        for label, callback in actions:
-            button = discord.ui.Button(
-                label=label,
-                style=discord.ButtonStyle.secondary,
-            )
-            button.callback = callback
-            row.add_item(button)
-        self._container.add_item(row)
+        button = discord.ui.Button(
+            label="Evidence - Full Trace", style=discord.ButtonStyle.primary
+        )
+        button.callback = self.evidence
+        self._container.add_item(discord.ui.ActionRow(button))
         self.add_footer()
 
     async def evidence(self, interaction):
@@ -121,10 +113,6 @@ class ReportView(OwnerView):
         await interaction.response.send_message(
             view=ReplyView(text[:3900]), ephemeral=True
         )
-
-    async def rescan(self, interaction):
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        await self.cog.scan(interaction, self.url)
 
 
 class LinkPicker(OwnerView):
@@ -217,7 +205,7 @@ class SusLink(commands.Cog):
             )
             try:
                 scan, picture = await scanner.run(url)
-                view = ReportView(self.bot, self, scan, picture, url)
+                view = ReportView(self.bot, scan, picture)
                 files = (
                     [discord.File(io.BytesIO(picture), filename="sus-link.jpg")]
                     if picture

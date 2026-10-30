@@ -511,7 +511,7 @@ class DiscordTests(unittest.IsolatedAsyncioTestCase):
             model="test",
             created_at=datetime.now(timezone.utc),
         )
-        view = ReportView(bot, None, scan, b"image", "https://example.com")
+        view = ReportView(bot, scan, b"image")
         self.assertEqual(view.to_components()[0]["type"], 17)
         self.assertLessEqual(view.content_length(), 4000)
         payload = json.dumps(view.to_components())
@@ -523,7 +523,15 @@ class DiscordTests(unittest.IsolatedAsyncioTestCase):
             for item in view.walk_children()
             if isinstance(item, __import__("discord").ui.Button)
         ]
-        self.assertEqual(buttons, ["Evidence", "Rescan"])
+        self.assertEqual(buttons, ["Evidence - Full Trace"])
+        self.assertFalse(hasattr(view, "rescan"))
+        self.assertTrue(
+            all(
+                item.style == __import__("discord").ButtonStyle.primary
+                for item in view.walk_children()
+                if isinstance(item, __import__("discord").ui.Button)
+            )
+        )
         self.assertFalse(hasattr(view, "full_report"))
         self.assertEqual(
             LinkPicker(bot, None, ["https://example.com"]).to_components()[0]["type"],
