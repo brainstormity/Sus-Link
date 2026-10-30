@@ -76,7 +76,7 @@ class ReportView(OwnerView):
         reasons = report.get("assessment_reasons", [])
         if reasons:
             self.add_separator(
-                spacing=discord.SeparatorSpacing.large, visible=False
+                spacing=discord.SeparatorSpacing.small, visible=False
             ).add_body(
                 "**Inspection Limits**\n"
                 + "\n".join("> -# • " + display(reason, 240) for reason in reasons[:3])
@@ -85,7 +85,7 @@ class ReportView(OwnerView):
         findings.extend(f"AI assessment: {item}" for item in ai.get("findings", [])[:3])
         findings = list(dict.fromkeys(findings))[:5]
         self.add_separator(
-            spacing=discord.SeparatorSpacing.large, visible=False
+            spacing=discord.SeparatorSpacing.small, visible=False
         ).add_body(
             "**Observed Evidence**\n"
             + (
@@ -95,7 +95,6 @@ class ReportView(OwnerView):
             )
         )
         if picture:
-            self.add_separator(spacing=discord.SeparatorSpacing.large, visible=False)
             self.add_header_image("attachment://sus-link.jpg")
         self.add_footer()
 
