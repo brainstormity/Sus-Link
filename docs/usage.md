@@ -7,11 +7,12 @@
 1. Right-click a message containing a link.
 2. Choose **Apps → Sus Link Checker**.
 3. If the message has several links, pick one from the selector.
-4. Watch the private checklist: ✅ means complete; ⏳ means pending or running.
+4. The command confirms: “Inspecting link. Your report will be sent to you by DM once ready.”
+5. Open the bot’s DM to read the finished report.
 
-The report includes a verdict, an observed-signal risk score, AI confidence, and recommended action. Use **Evidence**, **Screenshot**, **Full report**, or **Rescan** for more detail. Buttons expire after ten minutes; run the command again afterward.
+The report includes a verdict, an observed-signal risk score, AI confidence, and recommended action. The captured screenshot appears directly on the report when available. Use **Evidence** for more detail or **Rescan** to run another check. Buttons expire after ten minutes; run the command again afterward.
 
-Only the bot owner can use it. Reports are ephemeral, including in DMs with other people and group DMs. One scan runs at a time. Checklist updates are spaced at least five seconds apart.
+Only the bot owner can use it. The command acknowledgement is ephemeral, including in DMs with other people and group DMs. Finished reports are ordinary private messages sent directly by the bot, with the screenshot attached. One scan runs at a time; there are no progress edits.
 
 A risk score is not a probability or a guarantee of safety. Failed page loads, access challenges, or unavailable AI produce an **Inconclusive** verdict. See [scanning limitations](technical-details.md).
 
@@ -29,6 +30,7 @@ Follow the [Discord setup guide](discord-setup.md) to check your settings.
 | Issue | What to check |
 | --- | --- |
 | Only the bot owner can use Sus Link | Use the account that owns the Discord application. Team developers and admins are also recognized for team-owned apps. |
+| Report cannot be delivered | Enable direct messages from the bot, then run the command again. |
 | A scan is already running | Wait for the current scan to finish. |
 | First scan takes longer | Instabox is creating the machine and installing the browser. |
 | AI is unavailable | Check your Gemini key, project quotas, and model availability. Captured evidence is still returned where available. |
@@ -48,4 +50,4 @@ The original advanced options are available:
 | `!sync *` | Copy global commands to the current guild and sync |
 | `!sync ^` | Remove the current guild's commands |
 
-The last three options must be run in a server. Reading ordinary `!` commands in server messages requires Message Content Intent; DM `!sync` works with the intent disabled. Sync confirmations are normal private DM messages; scan reports use ephemeral interaction replies.
+The last three options must be run in a server. Reading ordinary `!` commands in server messages requires Message Content Intent; DM `!sync` works with the intent disabled. Sync confirmations are normal private DM messages; finished scan reports arrive as ordinary private DMs. Evidence-button replies remain ephemeral.

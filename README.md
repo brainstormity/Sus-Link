@@ -1,6 +1,6 @@
 # Sus Link
 
-Sus Link is a Discord bot that helps you investigate suspicious links without opening them on your own device. Right-click a message to check for phishing patterns, deceptive forms, redirects, and attempted downloads in an isolated cloud browser. Get a private threat report with a risk score, screenshots, and an AI assessment from Gemini.
+Sus Link is a Discord bot that helps you investigate suspicious links without opening them on your own device. Right-click a message to check for phishing patterns, deceptive forms, redirects, and attempted downloads in an isolated cloud browser. Receive a threat report by DM with a risk score, screenshots, and an AI assessment from Gemini.
 
 Works in servers, DMs, and group DMs. Only the bot owner can run scans.
 

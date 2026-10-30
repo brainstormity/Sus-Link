@@ -42,6 +42,6 @@ Only the bot owner can sync or run scans. Owner identity is detected automatical
 
 Commands **never sync automatically on startup**. Enable User Install before syncing. Run `!sync` again after changing commands or installation contexts. Ordinary restarts do not require another sync. Discord may take time to display changes.
 
-You can now right-click a message in a server, DM, or group DM and select **Apps → Sus Link Checker**. Scan reports are visible only to you.
+You can now right-click a message in a server, DM, or group DM and select **Apps → Sus Link Checker**. Finished reports are sent directly to your DMs.
 
 Official references: [Create a Discord bot](https://docs.discord.com/developers/quick-start/getting-started), [user installation](https://docs.discord.com/developers/tutorials/developing-a-user-installable-app).

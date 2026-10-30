@@ -279,6 +279,72 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
             await Gemini(session).analyze({}, "", {})
             self.assertIn("/second:", session.post.call_args.args[0])
 
+    async def test_high_demand_retries_then_falls_back_without_quota_cooldown(self):
+        from unittest.mock import MagicMock
+
+        session = MagicMock()
+        report = {
+            "summary": "Test",
+            "recommendation": "Use caution",
+            "confidence": "low",
+            "assessment": "low_risk",
+            "findings": [],
+            "limitations": [],
+        }
+        success = {
+            "candidates": [{"content": {"parts": [{"text": json.dumps(report)}]}}]
+        }
+        session.post.side_effect = [
+            FakeResponse(503, {"error": {"status": "UNAVAILABLE"}}),
+            FakeResponse(503, {"error": {"status": "UNAVAILABLE"}}),
+            FakeResponse(200, success),
+        ]
+        with patch.object(config, "GEMINI_MODELS", ("first", "second")), patch(
+            "services.analysis.asyncio.sleep", new=AsyncMock()
+        ):
+            result, model = await Gemini(session).analyze({}, "", {})
+            self.assertEqual(model, "second")
+            self.assertEqual(session.post.call_count, 3)
+            self.assertTrue(
+                all(
+                    "/first:" in call.args[0]
+                    for call in session.post.call_args_list[:2]
+                )
+            )
+            self.assertIn("/second:", session.post.call_args.args[0])
+            self.assertIn("high demand", result["model_notes"][0])
+            state = await ModelState.get(name="first")
+            self.assertEqual(state.requests, 2)
+            self.assertEqual(state.reason, "provider_high_demand")
+            self.assertIsNone(state.retry_at)
+            self.assertIsNone(state.limited_at)
+            session.post.side_effect = [FakeResponse(200, success)]
+            _, model = await Gemini(session).analyze({}, "", {})
+            self.assertEqual(model, "first")
+            self.assertIn("/first:", session.post.call_args.args[0])
+
+    async def test_invalid_output_does_not_downgrade(self):
+        from unittest.mock import MagicMock
+
+        session = MagicMock()
+        session.post.return_value = FakeResponse(
+            200,
+            {
+                "candidates": [
+                    {
+                        "content": {"parts": [{"text": "truncated JSON"}]},
+                        "finishReason": "MAX_TOKENS",
+                    }
+                ]
+            },
+        )
+        with patch.object(config, "GEMINI_MODELS", ("first", "second")):
+            result, model = await Gemini(session).analyze({}, "", {})
+        self.assertEqual(model, "")
+        self.assertEqual(session.post.call_count, 1)
+        self.assertIsNone(await ModelState.get_or_none(name="second"))
+        self.assertIn("invalid response", result["limitations"][0])
+
     async def test_all_models_exhausted_returns_evidence_only(self):
         from unittest.mock import MagicMock
 
@@ -308,9 +374,7 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(config, "INSTABOX_API", "test"), patch.object(
             config, "GEMINI_API", "test"
         ):
-            scan, _ = await scanner.run(
-                "https://example.com/?token=secret", lambda _: None
-            )
+            scan, _ = await scanner.run("https://example.com/?token=secret")
         self.assertEqual(scan.report["verdict"], "Inconclusive")
         self.assertNotIn("secret", scan.url)
 
@@ -346,20 +410,89 @@ class DiscordTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(interaction.response.defer.call_args.kwargs["ephemeral"])
         await bot.close()
 
-    async def test_progress_updates_are_coalesced(self):
-        from cogs.SusLink import Progress
+    async def test_finished_report_is_dmed_after_single_acknowledgement(self):
+        from cogs.SusLink import SusLink
 
-        interaction = SimpleNamespace(edit_original_response=AsyncMock())
-        progress = Progress(interaction)
-        await progress.start()
-        progress.set(1)
-        progress.set(2)
-        await asyncio.sleep(0.02)
-        # First edit is immediate; stage changes must wait the configured interval.
-        self.assertEqual(interaction.edit_original_response.await_count, 1)
-        progress.task.cancel()
-        with self.assertRaises(asyncio.CancelledError):
-            await progress.task
+        bot = Bot()
+        scan = SimpleNamespace(
+            evidence={},
+            model="test",
+            created_at=datetime.now(timezone.utc),
+            report={
+                **evaluate({"loaded": True}),
+                "ai": {
+                    "summary": "Complete",
+                    "recommendation": "Review evidence",
+                    "confidence": "medium",
+                },
+            },
+        )
+        bot.scanner = SimpleNamespace(
+            lock=asyncio.Lock(), run=AsyncMock(return_value=(scan, b"image"))
+        )
+        dm = SimpleNamespace(send=AsyncMock())
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(create_dm=AsyncMock(return_value=dm)),
+            edit_original_response=AsyncMock(),
+        )
+        await SusLink(bot).scan(interaction, "https://example.com")
+        interaction.edit_original_response.assert_awaited_once()
+        ack = json.dumps(
+            interaction.edit_original_response.call_args.kwargs["view"].to_components()
+        )
+        self.assertIn("Inspecting link", ack)
+        dm.send.assert_awaited_once()
+        self.assertEqual(dm.send.call_args.kwargs["files"][0].filename, "sus-link.jpg")
+        self.assertNotIn("ephemeral", dm.send.call_args.kwargs)
+        bot.scanner.run.assert_awaited_once_with("https://example.com")
+        await bot.close()
+
+    async def test_dm_channel_failure_prevents_scan(self):
+        import discord
+        from cogs.SusLink import SusLink
+
+        bot = Bot()
+        bot.scanner = SimpleNamespace(lock=asyncio.Lock(), run=AsyncMock())
+        response = SimpleNamespace(status=403, reason="Forbidden")
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(
+                create_dm=AsyncMock(
+                    side_effect=discord.Forbidden(response, "Cannot send messages")
+                )
+            ),
+            edit_original_response=AsyncMock(),
+        )
+        await SusLink(bot).scan(interaction, "https://example.com")
+        bot.scanner.run.assert_not_called()
+        self.assertIn(
+            "couldn't open your DMs",
+            json.dumps(
+                interaction.edit_original_response.call_args.kwargs[
+                    "view"
+                ].to_components()
+            ),
+        )
+        await bot.close()
+
+    async def test_scan_failure_is_reported_by_dm(self):
+        from cogs.SusLink import SusLink
+
+        bot = Bot()
+        bot.scanner = SimpleNamespace(
+            lock=asyncio.Lock(), run=AsyncMock(side_effect=RuntimeError("Missing key"))
+        )
+        dm = SimpleNamespace(send=AsyncMock())
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(create_dm=AsyncMock(return_value=dm)),
+            edit_original_response=AsyncMock(),
+        )
+        await SusLink(bot).scan(interaction, "https://example.com")
+        self.assertIn(
+            "Scan incomplete",
+            json.dumps(dm.send.call_args.kwargs["view"].to_components()),
+        )
+        interaction.edit_original_response.assert_awaited_once()
+        await bot.close()
 
     async def test_report_and_selector_serialize_as_v2(self):
         from cogs.SusLink import ReportView, LinkPicker
@@ -378,9 +511,20 @@ class DiscordTests(unittest.IsolatedAsyncioTestCase):
             model="test",
             created_at=datetime.now(timezone.utc),
         )
-        view = ReportView(bot, None, scan, b"", "https://example.com")
+        view = ReportView(bot, None, scan, b"image", "https://example.com")
         self.assertEqual(view.to_components()[0]["type"], 17)
         self.assertLessEqual(view.content_length(), 4000)
+        payload = json.dumps(view.to_components())
+        self.assertIn("attachment://sus-link.jpg", payload)
+        self.assertNotIn("Final destination", payload)
+        self.assertNotIn("Prepare isolated browser", payload)
+        buttons = [
+            item.label
+            for item in view.walk_children()
+            if isinstance(item, __import__("discord").ui.Button)
+        ]
+        self.assertEqual(buttons, ["Evidence", "Rescan"])
+        self.assertFalse(hasattr(view, "full_report"))
         self.assertEqual(
             LinkPicker(bot, None, ["https://example.com"]).to_components()[0]["type"],
             17,

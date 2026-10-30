@@ -30,6 +30,3 @@ GEMINI_MODELS: Final[tuple[str, ...]] = tuple(
 GEMINI_DAILY_BUDGETS: Final[tuple[int, ...]] = tuple(
     int(x) for x in os.getenv("GEMINI_DAILY_BUDGETS", "20,20,500").split(",")
 )
-PROGRESS_EDIT_SECONDS: Final[float] = max(
-    5.0, float(os.getenv("PROGRESS_EDIT_SECONDS", "5"))
-)

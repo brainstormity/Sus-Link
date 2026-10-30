@@ -27,13 +27,36 @@ Keep `.env` private. It is excluded from Git. No owner ID configuration is requi
 
 Instabox provides **one machine on its Free plan**; Sus Link creates and reuses that machine. Gemini offers a **free API tier** for supported models. Stay within the providers' free-tier limits; plans and quotas can change. Your computer or hosting service still needs to run the bot.
 
-## 3. Start and sync
+## 3. Run in tmux
+
+Use **tmux** to keep Sus Link running after you close the terminal or disconnect from SSH. Install it on the computer or server running the bot:
+
+- **Ubuntu/Debian:** `sudo apt install tmux`
+- **macOS with Homebrew:** `brew install tmux`
+- **Windows:** use tmux inside WSL, following the Linux setup steps there.
+
+From the project folder, create a session and start the bot inside it:
 
 ```sh
+tmux new -s sus-link
 venv/bin/python main.py
 ```
 
-Keep the bot running. Open its Discord DM and send `!sync` to register the command manually. See [Discord setup](discord-setup.md) for the required **User Install** settings.
+Press **Ctrl+B**, release both keys, then press **D** to detach. You can now close the terminal; the bot keeps running.
+
+To return to the bot's terminal and see its output:
+
+```sh
+tmux attach -t sus-link
+```
+
+To stop the bot, reattach and press **Ctrl+C**. To restart it, run `venv/bin/python main.py` again inside the same session. Reattach to an existing session instead of starting a second copy of the bot.
+
+The host must stay powered on, awake, and connected to the internet. tmux does not automatically restart the bot after a crash or reboot. See the [tmux guide](https://github.com/tmux/tmux/wiki/Getting-Started) for more help.
+
+## 4. Sync manually
+
+On first run, or after modifying a command, open the bot's Discord DM and send `!sync`. See [Discord setup](discord-setup.md) for the required **User Install** settings. Commands never sync automatically at startup.
 
 The first scan creates the isolated machine and installs its browser. This may take several minutes. Later scans reuse it, resuming paused machines or starting stopped machines. Keep this dedicated machine for Sus Link only.
 
@@ -47,7 +70,6 @@ The defaults are suitable for getting started:
 | `INSTABOX_MACHINE_NAME` | `sus-link` | Dedicated machine name |
 | `GEMINI_MODELS` | `gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash-lite` | Model preference order |
 | `GEMINI_DAILY_BUDGETS` | `20,20,500` | Local request budgets in the same order |
-| `PROGRESS_EDIT_SECONDS` | `5` | Minimum time between checklist edits |
 
 Local budgets do not guarantee Google's quotas. Check your actual project limits in AI Studio. Run only one bot process against this database.
 

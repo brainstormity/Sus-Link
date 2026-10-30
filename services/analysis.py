@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
@@ -10,6 +11,8 @@ import aiohttp
 
 from core import config
 from core.models import ModelState
+
+log = logging.getLogger(__name__)
 
 PACIFIC = ZoneInfo("America/Los_Angeles")
 
@@ -155,6 +158,34 @@ class Gemini:
     def __init__(self, session):
         self.session = session
 
+    async def request_model(self, model, body, state, budget):
+        # A temporary provider outage is not quota exhaustion. Give the preferred
+        # model one bounded retry before returning an explicit failure.
+        for attempt in range(2):
+            state.requests += 1
+            await state.save()
+            async with self.session.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                headers={"x-goog-api-key": config.GEMINI_API},
+                json=body,
+                timeout=aiohttp.ClientTimeout(total=75),
+            ) as response:
+                data = await response.json(content_type=None)
+                status = response.status
+            if (
+                status in (500, 502, 503, 504)
+                and attempt == 0
+                and state.requests < budget
+            ):
+                log.warning(
+                    "Gemini %s returned HTTP %s; retrying preferred model once.",
+                    model,
+                    status,
+                )
+                await asyncio.sleep(2)
+                continue
+            return status, data
+
     async def analyze(self, evidence, screenshot, rules):
         failures = []
         for index, model in enumerate(config.GEMINI_MODELS):
@@ -164,6 +195,7 @@ class Gemini:
             if state.quota_day != day:
                 state.quota_day, state.requests = day, 0
             if state.retry_at and state.retry_at > at:
+                failures.append(f"{model}: cooling down ({state.reason})")
                 continue
             budget = (
                 config.GEMINI_DAILY_BUDGETS[index]
@@ -173,6 +205,7 @@ class Gemini:
             if state.requests >= budget:
                 state.retry_at, state.reason = next_reset(at), "local_daily_budget"
                 await state.save()
+                failures.append(f"{model}: local daily budget reached")
                 continue
             parts = [
                 {
@@ -209,64 +242,78 @@ class Gemini:
                     "temperature": 0.1,
                 },
             }
-            # Reserve before sending so restarts cannot undercount ambiguous requests.
-            state.requests += 1
-            await state.save()
             try:
-                async with self.session.post(
-                    f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-                    headers={"x-goog-api-key": config.GEMINI_API},
-                    json=body,
-                    timeout=aiohttp.ClientTimeout(total=75),
-                ) as response:
-                    data = await response.json(content_type=None)
-                    if response.status == 429:
-                        state.limited_at = now()
-                        state.retry_at, state.reason = cooldown(
-                            data.get("error", {}), state.limited_at
-                        )
-                        await state.save()
-                        continue
-                    if response.status >= 400:
-                        failures.append(f"{model}: HTTP {response.status}")
-                        if response.status in (401, 403):
-                            break
-                        continue
-                    text = "".join(
-                        part.get("text", "")
-                        for part in data.get("candidates", [{}])[0]
-                        .get("content", {})
-                        .get("parts", [])
-                        if not part.get("thought")
+                status, data = await self.request_model(model, body, state, budget)
+                if status == 429:
+                    state.limited_at = now()
+                    state.retry_at, state.reason = cooldown(
+                        data.get("error", {}), state.limited_at
                     )
-                    result = json.loads(text)
-                    if not isinstance(result, dict) or any(
-                        k not in result for k in SCHEMA["required"]
-                    ):
-                        raise ValueError("Invalid report")
-                    for field in (
-                        "summary",
-                        "recommendation",
-                        "confidence",
-                        "assessment",
-                    ):
-                        if not isinstance(result[field], str):
-                            raise ValueError("Invalid report field")
-                    for field in ("findings", "limitations"):
-                        if not isinstance(result[field], list) or not all(
-                            isinstance(x, str) for x in result[field]
-                        ):
-                            raise ValueError("Invalid report list")
-                    if result["assessment"] not in (
-                        "low_risk",
-                        "suspicious",
-                        "high_risk",
-                        "inconclusive",
-                    ):
-                        raise ValueError("Invalid assessment")
-                    state.retry_at, state.reason = None, ""
                     await state.save()
-                    return result, model
+                    failures.append(f"{model}: rate limited ({state.reason})")
+                    log.warning("Gemini %s rate limited: %s", model, state.reason)
+                    continue
+                if status == 503:
+                    state.reason = "provider_high_demand"
+                    # Busy now does not mean exhausted for the day. Try this model
+                    # first again on the next scan; no quota cooldown is imposed.
+                    await state.save()
+                    failures.append(
+                        f"{model}: temporarily unavailable/high demand (HTTP 503); using next model"
+                    )
+                    log.warning(
+                        "Gemini %s remains unavailable after retry; trying next model.",
+                        model,
+                    )
+                    continue
+                if status >= 400:
+                    state.reason = f"provider_http_{status}"
+                    await state.save()
+                    failures.append(
+                        f"{model}: HTTP {status}; preferred model failed without a quota limit"
+                    )
+                    log.warning(
+                        "Gemini %s failed with HTTP %s; not downgrading for a non-quota error.",
+                        model,
+                        status,
+                    )
+                    break
+                text = "".join(
+                    part.get("text", "")
+                    for part in data.get("candidates", [{}])[0]
+                    .get("content", {})
+                    .get("parts", [])
+                    if not part.get("thought")
+                )
+                result = json.loads(text)
+                if not isinstance(result, dict) or any(
+                    k not in result for k in SCHEMA["required"]
+                ):
+                    raise ValueError("Invalid report")
+                for field in (
+                    "summary",
+                    "recommendation",
+                    "confidence",
+                    "assessment",
+                ):
+                    if not isinstance(result[field], str):
+                        raise ValueError("Invalid report field")
+                for field in ("findings", "limitations"):
+                    if not isinstance(result[field], list) or not all(
+                        isinstance(x, str) for x in result[field]
+                    ):
+                        raise ValueError("Invalid report list")
+                if result["assessment"] not in (
+                    "low_risk",
+                    "suspicious",
+                    "high_risk",
+                    "inconclusive",
+                ):
+                    raise ValueError("Invalid assessment")
+                state.retry_at, state.reason = None, ""
+                await state.save()
+                result["model_notes"] = failures
+                return result, model
             except (
                 aiohttp.ClientError,
                 asyncio.TimeoutError,
@@ -274,7 +321,16 @@ class Gemini:
                 KeyError,
                 IndexError,
             ):
-                failures.append(f"{model}: unavailable or invalid response")
+                state.reason = "request_failed_or_invalid_response"
+                await state.save()
+                failures.append(
+                    f"{model}: unavailable or invalid response; no non-quota downgrade"
+                )
+                log.warning(
+                    "Gemini %s request failed or returned an invalid report; not downgrading.",
+                    model,
+                )
+                break
         return {
             "summary": "AI analysis is unavailable. Review the observed evidence below.",
             "recommendation": "Avoid entering sensitive information until the scan can be assessed.",

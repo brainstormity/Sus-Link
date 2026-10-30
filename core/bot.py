@@ -23,7 +23,7 @@ class Bot(commands.Bot):
             intents=intents,
             allowed_mentions=discord.AllowedMentions.none(),
             activity=discord.Activity(
-                name="@brainstormity", type=discord.ActivityType.streaming
+                name="Built by @brainstormity", type=discord.ActivityType.streaming
             ),
         )
         self.http_session = None

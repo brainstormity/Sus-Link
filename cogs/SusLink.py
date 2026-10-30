@@ -1,28 +1,18 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import io
-import json
 import logging
-import time
 from urllib.parse import urlsplit
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
-from core import config
 from core.reply import ReplyView
 from services.urls import extract_urls, redact_url
 
 log = logging.getLogger(__name__)
-STAGES = (
-    "Prepare isolated browser",
-    "Inspect website and capture evidence",
-    "Analyze threats with Gemini",
-    "Build report",
-)
 COLORS = {
     "High risk": 0xED4245,
     "Suspicious": 0xFEE75C,
@@ -59,64 +49,10 @@ class OwnerView(ReplyView):
             await interaction.response.send_message(view=view, ephemeral=True)
 
 
-class Progress:
-    def __init__(self, interaction):
-        self.interaction = interaction
-        self.stage = 0
-        self.changed = asyncio.Event()
-        self.last_edit = 0.0
-        self.task = None
-
-    def view(self):
-        lines = ["## Sus Link · Scanning", ""]
-        for index, label in enumerate(STAGES):
-            state = "✅" if index < self.stage else "⏳"
-            suffix = " — running" if index == self.stage else ""
-            lines.append(f"{state} {label}{suffix}")
-        lines.extend(
-            ["", "-# Inspection runs in Instabox. No credentials are entered."]
-        )
-        return ReplyView("\n".join(lines), accent_color=0x5865F2)
-
-    async def start(self):
-        await self.interaction.edit_original_response(view=self.view())
-        self.last_edit = time.monotonic()
-        self.task = asyncio.create_task(self.pump())
-
-    def set(self, stage):
-        self.stage = stage
-        self.changed.set()
-
-    async def spacing(self):
-        await asyncio.sleep(
-            max(0, self.last_edit + config.PROGRESS_EDIT_SECONDS - time.monotonic())
-        )
-
-    async def pump(self):
-        while True:
-            await self.changed.wait()
-            await self.spacing()
-            self.changed.clear()
-            try:
-                await self.interaction.edit_original_response(view=self.view())
-            except discord.HTTPException:
-                log.warning("Progress edit unavailable; scan continues.")
-            self.last_edit = time.monotonic()
-
-    async def stop(self):
-        if self.task:
-            self.task.cancel()
-            with contextlib.suppress(asyncio.CancelledError, discord.HTTPException):
-                await self.task
-            self.task = None
-        await self.spacing()
-
-
 class ReportView(OwnerView):
     def __init__(self, bot, cog, scan, picture, url):
-        self.scan, self.picture, self.url, self.cog = scan, picture, url, cog
+        self.scan, self.url, self.cog = scan, url, cog
         report, ai = scan.report, scan.report["ai"]
-        checks = "\n".join("✅ " + stage for stage in STAGES)
         body = (
             f"## Sus Link · {report['verdict']}\n"
             f"**Observed-signal score:** {report['score']}/100\n"
@@ -137,22 +73,21 @@ class ReportView(OwnerView):
             )
         )
         self.add_separator().add_body(
-            f"**Final destination**\n{display(scan.evidence.get('final_url', ''), 350)}\n\n"
-            f"{checks}\n\n-# Score is rule-based, not a probability or guarantee of safety. "
+            "-# Score is rule-based, not a probability or guarantee of safety. "
             f"Model: {display(scan.model or 'unavailable', 80)} · {scan.created_at:%Y-%m-%d %H:%M UTC}"
         )
+        if picture:
+            self.add_separator().add_body("**Captured page**")
+            self.add_header_image("attachment://sus-link.jpg")
         row = discord.ui.ActionRow()
         actions = [
             ("Evidence", self.evidence),
-            ("Screenshot", self.screenshot),
-            ("Full report", self.full_report),
             ("Rescan", self.rescan),
         ]
         for label, callback in actions:
             button = discord.ui.Button(
                 label=label,
                 style=discord.ButtonStyle.secondary,
-                disabled=label == "Screenshot" and not picture,
             )
             button.callback = callback
             row.add_item(button)
@@ -172,6 +107,10 @@ class ReportView(OwnerView):
             "\n".join("• " + display(x, 280) for x in ai["findings"][:5])
             or "No additional AI findings."
         )
+        if ai.get("model_notes"):
+            text += "\n\n**Model selection**\n" + "\n".join(
+                "• " + display(note, 180) for note in ai["model_notes"][:3]
+            )
         text += "\n\n**Coverage and limitations**\n" + display(
             self.scan.evidence.get("coverage", ""), 400
         )
@@ -181,37 +120,6 @@ class ReportView(OwnerView):
         text += "\n" + "\n".join("• " + display(x, 180) for x in limitations[:5])
         await interaction.response.send_message(
             view=ReplyView(text[:3900]), ephemeral=True
-        )
-
-    async def screenshot(self, interaction):
-        view = ReplyView(
-            "## Sus Link · Captured page\nUntrusted website content shown as an image."
-        )
-        view.add_header_image("attachment://sus-link.jpg")
-        await interaction.response.send_message(
-            view=view,
-            file=discord.File(io.BytesIO(self.picture), filename="sus-link.jpg"),
-            ephemeral=True,
-        )
-
-    async def full_report(self, interaction):
-        data = {
-            "scan_id": str(self.scan.id),
-            "scanned_at": self.scan.created_at.isoformat(),
-            "model": self.scan.model,
-            "report": self.scan.report,
-            "evidence": self.scan.evidence,
-        }
-        await interaction.response.send_message(
-            view=ReplyView(
-                "Full report and captured evidence. "
-                "URLs may be untrusted; query strings have been redacted."
-            ),
-            file=discord.File(
-                io.BytesIO(json.dumps(data, indent=2, ensure_ascii=False).encode()),
-                filename="sus-link-report.json",
-            ),
-            ephemeral=True,
         )
 
     async def rescan(self, interaction):
@@ -293,31 +201,53 @@ class SusLink(commands.Cog):
             )
             return
         async with scanner.lock:
-            progress = Progress(interaction)
             try:
-                await progress.start()
-                scan, picture = await scanner.run(url, progress.set)
-                await progress.stop()
+                dm = await interaction.user.create_dm()
+            except discord.HTTPException:
                 await interaction.edit_original_response(
-                    view=ReportView(self.bot, self, scan, picture, url)
+                    view=ReplyView(
+                        "I couldn't open your DMs. Enable direct messages from this bot and try again."
+                    )
+                )
+                return
+            await interaction.edit_original_response(
+                view=ReplyView(
+                    "Inspecting link. Your report will be sent to you by DM once ready."
+                )
+            )
+            try:
+                scan, picture = await scanner.run(url)
+                view = ReportView(self.bot, self, scan, picture, url)
+                files = (
+                    [discord.File(io.BytesIO(picture), filename="sus-link.jpg")]
+                    if picture
+                    else []
                 )
             except Exception as error:
-                await progress.stop()
                 log.error("Sus Link scan failed (%s)", type(error).__name__)
                 from services.instabox import InstaboxError
 
-                if isinstance(error, InstaboxError):
-                    message = str(error)
-                elif isinstance(error, RuntimeError):
+                if isinstance(error, (InstaboxError, RuntimeError)):
                     message = str(error)
                 else:
                     message = "The scan could not finish. Check the bot setup and provider status, then try again."
+                view = ReplyView(
+                    "## Sus Link · Scan incomplete\n"
+                    + display(message)
+                    + "\n\nNo safety verdict was produced.",
+                    accent_color=COLORS["Inconclusive"],
+                )
+                files = []
+            try:
+                # DM messages are private, ordinary messages; ephemeral only applies
+                # to the command acknowledgement and component interaction replies.
+                await dm.send(view=view, files=files)
+            except discord.HTTPException:
+                log.warning("Sus Link DM delivery failed.")
                 await interaction.edit_original_response(
                     view=ReplyView(
-                        "## Sus Link · Scan incomplete\n"
-                        + display(message)
-                        + "\n\nNo safety verdict was produced.",
-                        accent_color=COLORS["Inconclusive"],
+                        "I couldn't DM your report. Enable direct messages from this bot, "
+                        "then run Sus Link Checker again."
                     )
                 )
 

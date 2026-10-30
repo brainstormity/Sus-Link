@@ -19,7 +19,7 @@ class Scanner:
         self.instabox = Instabox(session)
         self.gemini = Gemini(session)
 
-    async def run(self, url, progress):
+    async def run(self, url):
         if not config.INSTABOX_API or not config.GEMINI_API:
             raise RuntimeError(
                 "Set INSTABOX_API and GEMINI_API in .env before scanning."
@@ -27,13 +27,10 @@ class Scanner:
         scan = await Scan.create(url=redact_url(url))
         try:
             async with asyncio.timeout(660):
-                progress(0)
                 machine = await self.instabox.ensure_machine()
-                progress(1)
                 captured = await self.instabox.collect(machine, url)
                 evidence = captured["evidence"]
                 rules = evaluate(evidence)
-                progress(2)
                 ai, model = await self.gemini.analyze(
                     evidence, captured.get("screenshot", ""), rules
                 )
@@ -59,7 +56,6 @@ class Scanner:
                 scan.evidence, scan.report, scan.model = evidence, report, model
                 scan.status, scan.completed_at = "complete", now()
                 await scan.save()
-                progress(3)
                 picture = base64.b64decode(
                     captured.get("screenshot", ""), validate=True
                 )
