@@ -1,0 +1,10 @@
+discord.py==2.7.1
+async_lru==2.4.0
+oauthlib==4.0.0
+black==26.10.1
+pytz==2026.6
+typing_extensions==4.16.0
+tortoise-orm==1.1.9
+aiosqlite==0.22.1
+python-dotenv==1.2.4
+aiohttp>=3.13,<4

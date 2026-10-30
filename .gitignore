@@ -1,0 +1,20 @@
+.venv/
+venv/
+myenv/
+env/
+
+.env
+__pycache__/
+*.py[cod]
+.DS_Store
+
+# SQLite databases
+*.sqlite3
+*.sqlite
+*.db
+
+# Database directory, including SQLite journal/WAL files
+/database/
+*.sqlite3-wal
+*.sqlite3-shm
+*.sqlite3-journal
