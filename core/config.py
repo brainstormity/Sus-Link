@@ -22,11 +22,11 @@ GEMINI_API: Final[str] = os.getenv("GEMINI_API", "")
 INSTABOX_MACHINE_NAME: Final[str] = os.getenv("INSTABOX_MACHINE_NAME", "sus-link")
 GEMINI_MODELS: Final[tuple[str, ...]] = tuple(
     x.strip()
-    for x in os.getenv(
-        "GEMINI_MODELS", "gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash-lite"
-    ).split(",")
+    for x in os.getenv("GEMINI_MODELS", "gemini-3.6-flash,gemini-3.5-flash-lite").split(
+        ","
+    )
     if x.strip()
 )
 GEMINI_DAILY_BUDGETS: Final[tuple[int, ...]] = tuple(
-    int(x) for x in os.getenv("GEMINI_DAILY_BUDGETS", "20,20,500").split(",")
+    int(x) for x in os.getenv("GEMINI_DAILY_BUDGETS", "20,500").split(",")
 )

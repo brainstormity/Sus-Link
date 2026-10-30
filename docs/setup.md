@@ -68,8 +68,8 @@ The defaults are suitable for getting started:
 | --- | --- | --- |
 | `DB_URL` | `sqlite://database/db.sqlite3` | Local scan history and provider state |
 | `INSTABOX_MACHINE_NAME` | `sus-link` | Dedicated machine name |
-| `GEMINI_MODELS` | `gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash-lite` | Model preference order |
-| `GEMINI_DAILY_BUDGETS` | `20,20,500` | Local request budgets in the same order |
+| `GEMINI_MODELS` | `gemini-3.6-flash,gemini-3.5-flash-lite` | Model preference order |
+| `GEMINI_DAILY_BUDGETS` | `20,500` | Local request budgets in the same order |
 
 Local budgets do not guarantee Google's quotas. Check your actual project limits in AI Studio. Run only one bot process against this database.
 
