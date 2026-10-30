@@ -49,13 +49,18 @@ class OwnerView(ReplyView):
             await interaction.response.send_message(view=view, ephemeral=True)
 
 
+def report_heading(verdict, message_url=None):
+    reference = f" · [#original-message]({message_url})" if message_url else ""
+    return f"## {verdict}{reference}\n"
+
+
 class ReportView(OwnerView):
-    def __init__(self, bot, scan, picture):
+    def __init__(self, bot, scan, picture, message_url=None):
         self.scan = scan
         report, ai = scan.report, scan.report["ai"]
         body = (
-            f"## {report['verdict']}\n"
-            f"**Observed-signal score:** {report['score']}/100\n"
+            report_heading(report["verdict"], message_url)
+            + f"**Observed-signal score:** {report['score']}/100\n"
             f"**AI assessment confidence:** {display(ai['confidence'], 40)}\n\n"
             f"{display(ai['summary'], 700)}\n\n"
             f"## Recommendation\n{display(ai['recommendation'], 550)}"
@@ -111,9 +116,9 @@ class ReportView(OwnerView):
 
 
 class LinkPicker(OwnerView):
-    def __init__(self, bot, cog, urls):
+    def __init__(self, bot, cog, urls, message_url=None):
         super().__init__(bot, "## Sus Link\nChoose a link to inspect.")
-        self.cog, self.urls = cog, urls
+        self.cog, self.urls, self.message_url = cog, urls, message_url
         select = discord.ui.Select(
             placeholder="Select a link",
             options=[
@@ -131,7 +136,9 @@ class LinkPicker(OwnerView):
 
     async def selected(self, interaction):
         await interaction.response.defer(ephemeral=True, thinking=True)
-        await self.cog.scan(interaction, self.urls[int(self.select.values[0])])
+        await self.cog.scan(
+            interaction, self.urls[int(self.select.values[0])], self.message_url
+        )
 
 
 class SusLink(commands.Cog):
@@ -171,12 +178,12 @@ class SusLink(commands.Cog):
             )
         elif len(urls) > 1:
             await interaction.edit_original_response(
-                view=LinkPicker(self.bot, self, urls)
+                view=LinkPicker(self.bot, self, urls, message.jump_url)
             )
         else:
-            await self.scan(interaction, urls[0])
+            await self.scan(interaction, urls[0], message.jump_url)
 
-    async def scan(self, interaction, url):
+    async def scan(self, interaction, url, message_url=None):
         scanner = self.bot.scanner
         if scanner.lock.locked():
             await interaction.edit_original_response(
@@ -200,7 +207,7 @@ class SusLink(commands.Cog):
             )
             try:
                 scan, picture = await scanner.run(url)
-                view = ReportView(self.bot, scan, picture)
+                view = ReportView(self.bot, scan, picture, message_url)
                 files = (
                     [discord.File(io.BytesIO(picture), filename="sus-link.jpg")]
                     if picture
@@ -215,7 +222,7 @@ class SusLink(commands.Cog):
                 else:
                     message = "The scan could not finish. Check the bot setup and provider status, then try again."
                 view = ReplyView(
-                    "## Scan incomplete\n"
+                    report_heading("Scan incomplete", message_url)
                     + display(message)
                     + "\n\nNo safety verdict was produced.",
                     accent_color=COLORS["Inconclusive"],

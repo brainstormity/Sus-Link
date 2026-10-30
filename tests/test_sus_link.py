@@ -435,13 +435,19 @@ class DiscordTests(unittest.IsolatedAsyncioTestCase):
             user=SimpleNamespace(create_dm=AsyncMock(return_value=dm)),
             edit_original_response=AsyncMock(),
         )
-        await SusLink(bot).scan(interaction, "https://example.com")
+        await SusLink(bot).scan(
+            interaction, "https://example.com", "https://discord.com/channels/1/2/3"
+        )
         interaction.edit_original_response.assert_awaited_once()
         ack = json.dumps(
             interaction.edit_original_response.call_args.kwargs["view"].to_components()
         )
         self.assertIn("Inspecting link", ack)
         dm.send.assert_awaited_once()
+        self.assertIn(
+            "https://discord.com/channels/1/2/3",
+            json.dumps(dm.send.call_args.kwargs["view"].to_components()),
+        )
         self.assertEqual(dm.send.call_args.kwargs["files"][0].filename, "sus-link.jpg")
         self.assertNotIn("ephemeral", dm.send.call_args.kwargs)
         bot.scanner.run.assert_awaited_once_with("https://example.com")
@@ -511,11 +517,13 @@ class DiscordTests(unittest.IsolatedAsyncioTestCase):
             model="test",
             created_at=datetime.now(timezone.utc),
         )
-        view = ReportView(bot, scan, b"image")
+        source_url = "https://discord.com/channels/@me/123/456"
+        view = ReportView(bot, scan, b"image", source_url)
         self.assertEqual(view.to_components()[0]["type"], 17)
         self.assertLessEqual(view.content_length(), 4000)
         payload = json.dumps(view.to_components())
         self.assertIn("attachment://sus-link.jpg", payload)
+        self.assertIn(f"[#original-message]({source_url})", payload)
         self.assertNotIn("Final destination", payload)
         self.assertNotIn("Captured page", payload)
         self.assertNotIn("Sus Link ·", payload)
