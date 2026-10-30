@@ -17,20 +17,10 @@ Under **Privileged Gateway Intents**, leave **Message Content Intent disabled**.
 
 Open **Installation** in the sidebar:
 
-- Enable **User Install**, then save. **Guild Install is optional** for this owner-only bot.
+- Enable **User Install**, then save.
 - Set **Install Link** to **Discord Provided Link**.
-- Under **Default Install Settings**, use these settings:
-
-| Install type | Scopes | Bot permissions |
-| --- | --- | --- |
-| User Install | `applications.commands` | None |
-| Guild Install (optional) | `applications.commands`, `bot` | Send Messages |
-
-Only the User Install row is needed for your personal setup. No Administrator permission is needed. Save your changes.
-
-![Discord Installation page with User Install and Guild Install enabled, Discord Provided Link selected, and the required scopes configured](images/discord-installation.png)
-
-*Installation settings reference provided for this project. The screenshot shows both installation types enabled; for personal use, only User Install is required. Discord may label the first section “Installation Contexts” or “Authorization Methods.”*
+- Under **Default Install Settings** → **User Install**, select the `applications.commands` scope.
+- Save your changes.
 
 ## 3. Install to your account
 
@@ -38,9 +28,9 @@ Copy the installation link from the same page, open it, and choose **Add to my a
 
 This personal installation makes Sus Link available to you in **servers, DMs with other people, and group DMs**. The bot does not need to be added to those servers. The owner check still prevents other users from running scans, and reports are visible only to you. Availability in servers remains subject to Discord's permissions for external apps.
 
-**Optional:** If you also want a server installation, enable Guild Install, configure its scopes as shown above, open the link again, and choose **Add to server**. This is not needed for the personal workflow.
-
 ## 4. Sync manually
+
+**ONLY REQUIRED WHEN RUNNING THE BOT FOR THE FIRST TIME OR WHEN YOU MODIFY A COMMAND.**
 
 After [starting the bot](setup.md), open a DM directly with it and send:
 
@@ -54,4 +44,4 @@ Commands **never sync automatically on startup**. Enable User Install before syn
 
 You can now right-click a message in a server, DM, or group DM and select **Apps → Sus Link Checker**. Scan reports are visible only to you.
 
-Official references: [Create a Discord bot](https://docs.discord.com/developers/quick-start/getting-started), [user and guild installation](https://docs.discord.com/developers/tutorials/developing-a-user-installable-app).
+Official references: [Create a Discord bot](https://docs.discord.com/developers/quick-start/getting-started), [user installation](https://docs.discord.com/developers/tutorials/developing-a-user-installable-app).

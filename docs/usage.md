@@ -18,11 +18,11 @@ A risk score is not a probability or a guarantee of safety. Failed page loads, a
 ## If the command is missing
 
 - Start the bot and send `!sync` in a DM directly with it.
-- Enable **User Install** in the Developer Portal before syncing. Guild Install is optional.
+- Enable **User Install** in the Developer Portal before syncing.
 - For DMs with other people, install using **Add to my apps**. A server install alone is insufficient.
 - Allow Discord time to display newly synced commands.
 
-Follow the [illustrated Discord setup guide](discord-setup.md) to check your settings.
+Follow the [Discord setup guide](discord-setup.md) to check your settings.
 
 ## Other common issues
 

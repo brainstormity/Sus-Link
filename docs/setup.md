@@ -33,7 +33,7 @@ Instabox provides **one machine on its Free plan**; Sus Link creates and reuses 
 venv/bin/python main.py
 ```
 
-Keep the bot running. Open its Discord DM and send `!sync` to register the command manually. See [Discord setup](discord-setup.md) for the required **User Install** settings. Guild Install is optional.
+Keep the bot running. Open its Discord DM and send `!sync` to register the command manually. See [Discord setup](discord-setup.md) for the required **User Install** settings.
 
 The first scan creates the isolated machine and installs its browser. This may take several minutes. Later scans reuse it, resuming paused machines or starting stopped machines. Keep this dedicated machine for Sus Link only.
 

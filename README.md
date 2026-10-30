@@ -14,11 +14,9 @@ Works in servers, DMs, and group DMs. Only the bot owner can run scans.
 2. [Add your API keys and start Sus Link](docs/setup.md).
 3. DM the bot `!sync`, then right-click a message → **Apps → Sus Link Checker**.
 
-Commands are synced manually. Message Content Intent can stay disabled.
-
 ## Documentation
 
-- [Discord setup with screenshots](docs/discord-setup.md)
+- [Discord setup](docs/discord-setup.md)
 - [Installation and configuration](docs/setup.md)
 - [Using Sus Link and troubleshooting](docs/usage.md)
 - [How scanning works, privacy, quotas, and tests](docs/technical-details.md)
