@@ -214,7 +214,7 @@ class SusLink(commands.Cog):
                 return
             await interaction.edit_original_response(
                 view=ReplyView(
-                    f"Inspecting {url}. **I'll DM you the report once ready** :hand_shake:"
+                    f"Inspecting {url}. **I'll DM you the report once ready** 🤝"
                 )
             )
             try:
