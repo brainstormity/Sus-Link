@@ -4,6 +4,8 @@ Sus Link is a Discord bot that helps you investigate suspicious links without op
 
 Works in servers, DMs, and group DMs. Only the bot owner can run scans.
 
+https://github.com/user-attachments/assets/95b5b076-00e7-4229-8628-57eec3245859
+
 ## Free Access
 
 - [Instabox](https://instabox.sh/docs/limits) provides **one free machine**, which Sus Link reuses. 
