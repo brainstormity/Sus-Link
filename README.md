@@ -4,9 +4,10 @@ Sus Link is a Discord bot that helps you investigate suspicious links without op
 
 Works in servers, DMs, and group DMs. Only the bot owner can run scans.
 
-## Free tiers
+## Free Access
 
-[Instabox](https://instabox.sh/docs/limits) provides **one free machine**, which Sus Link reuses. The [Gemini API](https://ai.google.dev/gemini-api/docs/pricing) also offers a **free tier**, subject to model availability and quotas.
+- [Instabox](https://instabox.sh/docs/limits) provides **one free machine**, which Sus Link reuses. 
+- The [Gemini API](https://ai.google.dev/gemini-api/docs/pricing) also offers a **free tier**, subject to model availability and quotas.
 
 ## Get started
 

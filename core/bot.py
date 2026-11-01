@@ -42,6 +42,7 @@ class Bot(commands.Bot):
             timeout=aiohttp.ClientTimeout(total=300)
         )
         self.scanner = Scanner(self.http_session)
+        
         for file in sorted((Path(__file__).resolve().parents[1] / "cogs").glob("*.py")):
             if not file.name.startswith("_"):
                 await self.load_extension(f"cogs.{file.stem}")

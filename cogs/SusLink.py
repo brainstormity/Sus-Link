@@ -23,7 +23,7 @@ COLORS = {
 }
 
 
-def display(value, limit=1500):
+def display(value, limit=1499):
     # Preserve normal URLs while escaping untrusted Markdown and mentions.
     value = str(value)
     return discord.utils.escape_markdown(discord.utils.escape_mentions(value))[:limit]
