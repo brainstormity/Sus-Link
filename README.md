@@ -23,3 +23,7 @@ https://github.com/user-attachments/assets/95b5b076-00e7-4229-8628-57eec3245859
 - [Installation and configuration](docs/setup.md)
 - [Using Sus Link and troubleshooting](docs/usage.md)
 - [How scanning works, privacy, quotas, and tests](docs/technical-details.md)
+
+## License
+
+[MIT](LICENSE) © 2026 brainstormity.
