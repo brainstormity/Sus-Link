@@ -26,4 +26,4 @@ https://github.com/user-attachments/assets/95b5b076-00e7-4229-8628-57eec3245859
 
 ## License
 
-[MIT](LICENSE) © 2026 brainstormity.
+[MIT](LICENSE) © 2026 [brainstormity.com](https://brainstormity.com).
